@@ -18,7 +18,7 @@ export const createPool = () => {
 
   if (dbUrl) {
     // Digunakan saat deploy ke Vercel jika menggunakan database gratis seperti Neon.tech atau Supabase 
-    const useSsl = dbUrl.includes('neon.tech') || dbUrl.includes('supabase.co') || dbUrl.includes('vercel') || dbUrl.includes('koyeb');
+    const useSsl = dbUrl.includes('neon.tech') || dbUrl.includes('supabase.co') || dbUrl.includes('vercel') || dbUrl.includes('koyeb') || dbUrl.includes('sslmode=require');
     
     return new Pool({
       connectionString: dbUrl,

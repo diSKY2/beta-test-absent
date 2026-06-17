@@ -1,8 +1,13 @@
-import { db } from "./src/db/index";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { admins } from "./src/db/schema";
 import { v4 as uuidv4 } from "uuid";
+import { createPool } from "./src/db/index";
 
 async function main() {
+  const pool = createPool();
+  const db = drizzle(pool, { schema: { admins } });
+
   try {
     const adminId = uuidv4();
     await db.insert(admins).values({
@@ -13,13 +18,16 @@ async function main() {
       role: "admin",
     });
     console.log("Admin seeded successfully! email: admin@admin.com | password: admin");
+    await pool.end();
     process.exit(0);
   } catch (error: any) {
     if (error.code === '23505') {
         console.log("Admin account with this email already exists.");
+        await pool.end();
         process.exit(0);
     } else {
         console.error("Failed to seed admin:", error);
+        await pool.end();
         process.exit(1);
     }
   }
