@@ -46,8 +46,9 @@ genericDbRouter.post('/rpc', async (req, res) => {
           if (collection === 'company_info' && fieldName === 'key') fieldName = 'configKey';
           
           const operator = f.op || f.operator;
+          const val = f.value !== undefined ? f.value : f.val;
           if (operator === '==' && table[fieldName]) {
-            return eq(table[fieldName], f.value);
+            return eq(table[fieldName], val);
           }
           return undefined;
         }).filter(Boolean);
@@ -136,6 +137,15 @@ genericDbRouter.post('/rpc', async (req, res) => {
             content: JSON.stringify(rest)
           });
         }
+      } else if (collection === 'shift_patterns') {
+        const existing = await db.select().from(table).where(eq(table.subDepartmentId, safeData.subDepartmentId));
+        if (existing.length > 0) {
+          await db.update(table).set({ ...safeData, updatedAt: new Date() }).where(eq(table.id, existing[0].id));
+          res.json({ id: existing[0].id });
+          return;
+        } else {
+          await db.insert(table).values(insertData);
+        }
       } else {
         await db.insert(table).values(insertData);
       }
@@ -210,6 +220,13 @@ genericDbRouter.post('/rpc', async (req, res) => {
                 configKey: confKey,
                 content: JSON.stringify(rest)
              });
+          }
+        } else if (collection === 'shift_patterns') {
+          const existingBySub = await db.select().from(table).where(eq(table.subDepartmentId, safeData.subDepartmentId));
+          if (existingBySub.length > 0) {
+             await db.update(table).set({ ...safeData, updatedAt: new Date() }).where(eq(table.id, existingBySub[0].id));
+          } else {
+             await db.insert(table).values(insertData);
           }
         } else {
           await db.insert(table).values(insertData);
