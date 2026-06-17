@@ -324,11 +324,13 @@ export default function Rostering() {
             const docId = `${emp.id}_${dateStr}`;
             await setDoc(doc(db, 'schedules', docId), {
               employeeId: emp.id,
+              subDepartmentId: selectedSub,
               date: dateStr,
               shiftTypeId: shift.id,
               shiftName: shift.name,
               shiftStart: shift.isOffDay ? "Libur" : shift.startTime,
               shiftEnd: shift.isOffDay ? "Libur" : shift.endTime,
+              isOffDay: shift.isOffDay,
               updatedAt: Date.now()
             }, { merge: true });
             writeCount++;
