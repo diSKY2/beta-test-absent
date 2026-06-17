@@ -38,11 +38,16 @@ genericDbRouter.post('/rpc', async (req, res) => {
       let queryFn = db.select().from(table);
       
       // Basic support for Drizzle eq() filters sent from mobile as: [{ field: "nik", operator: "==", value: "123" }]
-      if (filters && Array.isArray(filters) && filters.length > 0) {
+      const activeFilters = filters || queries || [];
+      if (activeFilters && Array.isArray(activeFilters) && activeFilters.length > 0) {
         // Warning: This simplistic approach only handles '==' on top level keys for now
-        const conditions = filters.map((f: any) => {
-          if (f.operator === '==' && table[f.field]) {
-            return eq(table[f.field], f.value);
+        const conditions = activeFilters.map((f: any) => {
+          let fieldName = f.field;
+          if (collection === 'company_info' && fieldName === 'key') fieldName = 'configKey';
+          
+          const operator = f.op || f.operator;
+          if (operator === '==' && table[fieldName]) {
+            return eq(table[fieldName], f.value);
           }
           return undefined;
         }).filter(Boolean);
@@ -114,11 +119,23 @@ genericDbRouter.post('/rpc', async (req, res) => {
         }
       } else if (collection === 'company_info') {
         const { key, ...rest } = safeData;
-        await db.insert(table).values({
-          id: newId,
-          configKey: key || 'profile',
-          content: JSON.stringify(rest)
-        });
+        const confKey = key || 'profile';
+        
+        // Try getting existing to handle merge
+        const existing = await db.select().from(table).where(eq(table.configKey, confKey));
+        if (existing.length > 0) {
+          const currentContent = JSON.parse(existing[0].content || '{}');
+          await db.update(table).set({
+            content: JSON.stringify({ ...currentContent, ...rest }),
+            updatedAt: new Date()
+          }).where(eq(table.id, existing[0].id));
+        } else {
+          await db.insert(table).values({
+            id: newId,
+            configKey: confKey,
+            content: JSON.stringify(rest)
+          });
+        }
       } else {
         await db.insert(table).values(insertData);
       }
@@ -179,11 +196,21 @@ genericDbRouter.post('/rpc', async (req, res) => {
       } else {
         if (collection === 'company_info') {
           const { key, ...rest } = safeData;
-          await db.insert(table).values({
-             id: docId,
-             configKey: key || 'profile',
-             content: JSON.stringify(rest)
-          });
+          const confKey = key || 'profile';
+          const existingByKey = await db.select().from(table).where(eq(table.configKey, confKey));
+          if (existingByKey.length > 0) {
+             const currentContent = JSON.parse(existingByKey[0].content || '{}');
+             await db.update(table).set({
+               content: JSON.stringify({ ...currentContent, ...rest }),
+               updatedAt: new Date()
+             }).where(eq(table.id, existingByKey[0].id));
+          } else {
+             await db.insert(table).values({
+                id: docId,
+                configKey: confKey,
+                content: JSON.stringify(rest)
+             });
+          }
         } else {
           await db.insert(table).values(insertData);
         }

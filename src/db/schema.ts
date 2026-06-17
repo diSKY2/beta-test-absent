@@ -94,9 +94,14 @@ export const subdeptScheduleOverrides = pgTable('subdept_schedule_overrides', {
 
 export const schedules = pgTable('schedules', {
   id: varchar('id', { length: 50 }).primaryKey(),
+  employeeId: varchar('employee_id', { length: 50 }).notNull().references(() => employees.id, { onDelete: 'cascade' }),
   subDepartmentId: varchar('sub_department_id', { length: 50 }).notNull().references(() => subDepartments.id, { onDelete: 'cascade' }),
-  scheduleDate: timestamp('schedule_date').notNull(),
-  shift: varchar('shift', { length: 50 }).notNull(),
+  date: timestamp('date').notNull(),
+  shiftTypeId: varchar('shift_type_id', { length: 50 }),
+  shiftName: varchar('shift_name', { length: 100 }),
+  shiftStart: varchar('shift_start', { length: 10 }),
+  shiftEnd: varchar('shift_end', { length: 10 }),
+  isOffDay: boolean('is_off_day').default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
