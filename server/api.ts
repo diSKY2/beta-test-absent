@@ -153,6 +153,25 @@ apiRouter.post('/admin/login', async (req, res) => {
   }
 });
 
+apiRouter.post('/employee/login', async (req, res) => {
+  try {
+    const { nik, password } = req.body;
+    const empResult = await db.select().from(employees).where(eq(employees.nik, nik));
+    if (empResult.length === 0) {
+      return res.status(401).json({ error: 'Data Karyawan tidak ditemukan (NIK Salah)' });
+    }
+    const empUser = empResult[0];
+    
+    if (empUser.password !== password) {
+      return res.status(401).json({ error: 'Password salah' });
+    }
+    
+    res.json({ success: true, user: empUser });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 apiRouter.post('/admin/register', async (req, res) => {
   try {
     const { email, password, name } = req.body;
