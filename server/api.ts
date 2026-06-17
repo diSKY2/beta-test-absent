@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../src/db';
-import { locations, departments, subDepartments, employees, employeeAllowances, employeeDeductions } from '../src/db/schema';
+import { locations, departments, subDepartments, employees, employeeAllowances, employeeDeductions, admins } from '../src/db/schema';
 import { eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -135,7 +135,6 @@ apiRouter.delete('/subdepartments/:id', async (req, res) => {
 });
 
 // Admin Authentication (For HR Admin Login via API)
-import { admins } from '../src/db/schema';
 
 apiRouter.post('/admin/login', async (req, res) => {
   try {
