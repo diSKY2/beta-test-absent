@@ -1,0 +1,91 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Basic global security helper
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn();
+    }
+
+    function isInitialAdminBootstrapping() {
+      return request.auth != null && (request.auth.token.email == "ssaputraaldi2@gmail.com");
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    match /{document=**} {
+      allow read, write: if true; // allow all because custom auth is in use via client
+    }
+
+    match /admins/{adminId} {
+      allow read, write: if true;
+    }
+
+    match /galleries/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /locations/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /departments/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /sub_departments/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /employees/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /shift_types/{document} {
+      allow read, write: if true;
+    }
+
+    match /shift_patterns/{document} {
+      allow read, write: if true;
+    }
+
+    match /schedules/{document} {
+      allow read, write: if true;
+    }
+
+    match /attendances/{document} {
+      allow read: if true;
+      allow write: if isAdmin() || isSignedIn(); 
+    }
+
+    match /leave_requests/{document} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isSignedIn();
+    }
+
+    match /overtime_requests/{document} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isSignedIn();
+    }
+
+    match /announcements/{document} {
+      allow read: if true; // Public for landing page
+      allow write: if isAdmin();
+    }
+
+    match /company_info/{document} {
+      allow read: if true; // Public for landing page
+      allow write: if isAdmin();
+    }
+  }
+}

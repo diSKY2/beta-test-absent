@@ -1,0 +1,340 @@
+{
+  "entities": {
+    "Admin": {
+      "title": "Admin",
+      "description": "Administrator of the system.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "integer"
+        }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "Location": {
+      "title": "Location",
+      "description": "Company locations and geofencing configurations.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "latitude": {
+          "type": "number"
+        },
+        "longitude": {
+          "type": "number"
+        },
+        "radius": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "integer"
+        }
+      },
+      "required": ["name", "latitude", "longitude", "radius", "createdAt", "updatedAt"]
+    },
+    "Department": {
+      "title": "Department",
+      "description": "Departments under a location.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "locationId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "integer"
+        }
+      },
+      "required": ["name", "locationId", "createdAt", "updatedAt"]
+    },
+    "SubDepartment": {
+      "title": "Sub Department",
+      "description": "Sub-departments or Regu under a department.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "departmentId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "integer"
+        }
+      },
+      "required": ["name", "departmentId", "createdAt", "updatedAt"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Employee profiles.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "locationId": {
+          "type": "string"
+        },
+        "departmentId": {
+          "type": "string"
+        },
+        "subDepartmentId": {
+          "type": "string"
+        },
+        "baseSalary": {
+          "type": "number"
+        },
+        "role": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "integer"
+        }
+      },
+      "required": ["name", "locationId", "departmentId", "subDepartmentId", "baseSalary", "role", "createdAt", "updatedAt"]
+    },
+    "Schedule": {
+      "title": "Schedule",
+      "description": "Monthly rostering per sub-department per day.",
+      "type": "object",
+      "properties": {
+        "subDepartmentId": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "shift": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "integer"
+        }
+      },
+      "required": ["subDepartmentId", "date", "shift", "createdAt", "updatedAt"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Daily employee attendance record.",
+      "type": "object",
+      "properties": {
+        "employeeId": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "timeIn": {
+          "type": "string"
+        },
+        "timeOut": {
+          "type": "string"
+        },
+        "isLate": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "integer"
+        }
+      },
+      "required": ["employeeId", "date", "status", "createdAt", "updatedAt"]
+    },
+    "LeaveRequest": {
+      "title": "Leave Request",
+      "description": "Employee leave or sick requests requiring approval.",
+      "type": "object",
+      "properties": {
+        "employeeId": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "photoUrl": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "integer"
+        }
+      },
+      "required": ["employeeId", "date", "type", "reason", "status", "createdAt", "updatedAt"]
+    },
+    "OvertimeRequest": {
+      "title": "Overtime Request",
+      "description": "Employee overtime requests requiring approval.",
+      "type": "object",
+      "properties": {
+        "employeeId": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "hours": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "integer"
+        }
+      },
+      "required": ["employeeId", "date", "reason", "hours", "status", "createdAt", "updatedAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Public company news and announcements.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "integer"
+        }
+      },
+      "required": ["title", "content", "type", "createdAt", "updatedAt"]
+    },
+    "CompanyInfo": {
+      "title": "Company Info",
+      "description": "Company profile details.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "integer"
+        }
+      },
+      "required": ["key", "content", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "admins/{adminId}": {
+      "schema": {
+        "$ref": "#/entities/Admin"
+      },
+      "description": "System administrators."
+    },
+    "locations/{locationId}": {
+      "schema": {
+        "$ref": "#/entities/Location"
+      },
+      "description": "Company geofenced locations."
+    },
+    "departments/{departmentId}": {
+      "schema": {
+        "$ref": "#/entities/Department"
+      },
+      "description": "Departments structure."
+    },
+    "sub_departments/{subDepartmentId}": {
+      "schema": {
+        "$ref": "#/entities/SubDepartment"
+      },
+      "description": "Sub-departments structure."
+    },
+    "employees/{employeeId}": {
+      "schema": {
+        "$ref": "#/entities/Employee"
+      },
+      "description": "Employee records."
+    },
+    "schedules/{scheduleId}": {
+      "schema": {
+        "$ref": "#/entities/Schedule"
+      },
+      "description": "Rostering schedules."
+    },
+    "attendances/{attendanceId}": {
+      "schema": {
+        "$ref": "#/entities/Attendance"
+      },
+      "description": "Employee attendance logs."
+    },
+    "leave_requests/{requestId}": {
+      "schema": {
+        "$ref": "#/entities/LeaveRequest"
+      },
+      "description": "Leave requests for approval."
+    },
+    "overtime_requests/{requestId}": {
+      "schema": {
+        "$ref": "#/entities/OvertimeRequest"
+      },
+      "description": "Overtime requests for approval."
+    },
+    "announcements/{announcementId}": {
+      "schema": {
+        "$ref": "#/entities/Announcement"
+      },
+      "description": "Public company news."
+    },
+    "company_info/{infoId}": {
+      "schema": {
+        "$ref": "#/entities/CompanyInfo"
+      },
+      "description": "Public company profile."
+    }
+  }
+}
