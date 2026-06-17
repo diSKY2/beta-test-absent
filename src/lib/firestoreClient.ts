@@ -1,15 +1,17 @@
+export const getFirestore = (...args: any[]) => ({});
+export const getStorage = (...args: any[]) => ({});
 export const db = {};
 export const storage = {};
-export const getAuth = () => ({});
-export const signInWithEmailAndPassword = async () => ({});
-export const createUserWithEmailAndPassword = async () => ({});
-export const signInWithPopup = async () => ({});
+export const getAuth = (...args: any[]) => ({});
+export const signInWithEmailAndPassword = async (...args: any[]) => ({});
+export const createUserWithEmailAndPassword = async (...args: any[]) => ({});
+export const signInWithPopup = async (...args: any[]) => ({});
 export const GoogleAuthProvider = class {};
-export const signInAnonymously = async () => ({});
-export const uploadBytesResumable = () => ({ on: (event: any, a: any, b: any, c: any) => c() });
-export const ref = () => ({});
-export const getDownloadURL = async () => ('/profile.jpg');
-export const initializeApp = () => ({});
+export const signInAnonymously = async (...args: any[]) => ({});
+export const uploadBytesResumable = (...args: any[]) => ({ on: (event: any, a: any, b: any, c: any) => c() });
+export const ref = (...args: any[]) => ({});
+export const getDownloadURL = async (...args: any[]) => ('/profile.jpg');
+export const initializeApp = (...args: any[]) => ({});
 export const firebaseConfig = {};
 
 // Firebase Auth mock matching the required interfaces
@@ -78,11 +80,11 @@ export async function addDoc(col: any, data: any) {
   return await res.json();
 }
 
-export async function setDoc(docObj: any, data: any) {
+export async function setDoc(docObj: any, data: any, options?: any) {
   const res = await fetch('/api/sql/rpc', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'setDoc', collection: docObj.name, docId: docObj.id, data })
+    body: JSON.stringify({ action: 'setDoc', collection: docObj.name, docId: docObj.id, data, options })
   });
   if (!res.ok) throw new Error(await res.text());
   return await res.json();

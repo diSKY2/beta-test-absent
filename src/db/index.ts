@@ -3,8 +3,19 @@ import { Pool } from 'pg';
 import * as schema from './schema';
 
 export const createPool = () => {
-  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL_POSTGRES_URL_NON_POOLING;
+  const envVars = process.env;
   
+  // Memeriksa berbagai format env var yang mungkin diberikan Vercel
+  const dbUrl = 
+    envVars.DATABASE_URL_POSTGRES_URL_NON_POOLING || 
+    envVars.DATABASE_URL_POSTGRES_PRISMA_URL ||
+    envVars.DATABASE_URL_UNPOOLED ||
+    envVars.POSTGRES_URL_NON_POOLING ||
+    envVars.POSTGRES_URL ||
+    envVars.DATABASE_URL;
+  
+  console.log("DB URL Found:", !!dbUrl);
+
   if (dbUrl) {
     // Digunakan saat deploy ke Vercel jika menggunakan database gratis seperti Neon.tech atau Supabase 
     return new Pool({

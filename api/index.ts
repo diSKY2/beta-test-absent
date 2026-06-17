@@ -16,6 +16,12 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/api/sql', genericDbRouter);
 app.use('/api', apiRouter);
 
+// Catch all top level errors for Vercel
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error(err);
+  res.status(500).json({ error: "Express Error: " + (err.message || String(err)), stack: err.stack });
+});
+
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "Cloud SQL Backend is running on Vercel Serverless" });
@@ -51,4 +57,6 @@ app.post("/api/mobile/login", async (req, res) => {
 });
 
 // Penting untuk Vercel: Export aplikasi express
-export default app;
+export default function handler(req: any, res: any) {
+  return app(req, res);
+}
