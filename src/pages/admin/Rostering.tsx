@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../lib/firestoreClient';
-import { collection, query, where, getDocs, setDoc, doc, addDoc, deleteDoc } from '../../lib/firestoreClient';
+import { collection, query, where, getDocs, setDoc, doc, addDoc, deleteDoc, batchSetDocs } from '../../lib/firestoreClient';
 import { handleFirestoreError, OperationType } from '../../lib/utils';
 import { format, addDays, startOfMonth, endOfMonth, differenceInDays } from 'date-fns';
 import { Calendar as CalIcon, Download, Clock, Repeat, Plus, Trash2, Edit2, ShieldAlert } from 'lucide-react';
@@ -315,29 +315,37 @@ export default function Rostering() {
 
       // 2. Compute schedules for the month
       const dates = getDaysInMonth();
-      let writeCount = 0;
+      
+      const batchDocs: any[] = [];
 
       for (const emp of employees) {
         for (const dateStr of dates) {
           const shift = getShiftForDate(dateStr);
           if (shift) {
             const docId = `${emp.id}_${dateStr}`;
-            await setDoc(doc(db, 'schedules', docId), {
-              employeeId: emp.id,
-              subDepartmentId: selectedSub,
-              date: dateStr,
-              shiftTypeId: shift.id,
-              shiftName: shift.name,
-              shiftStart: shift.isOffDay ? "Libur" : shift.startTime,
-              shiftEnd: shift.isOffDay ? "Libur" : shift.endTime,
-              isOffDay: shift.isOffDay,
-              updatedAt: Date.now()
-            }, { merge: true });
-            writeCount++;
+            batchDocs.push({
+              id: docId,
+              data: {
+                employeeId: emp.id,
+                subDepartmentId: selectedSub,
+                date: dateStr,
+                shiftTypeId: shift.id,
+                shiftName: shift.name,
+                shiftStart: shift.isOffDay ? "Libur" : shift.startTime,
+                shiftEnd: shift.isOffDay ? "Libur" : shift.endTime,
+                isOffDay: shift.isOffDay,
+                updatedAt: Date.now()
+              }
+            });
           }
         }
       }
-      toast.success(`Berhasil! ${writeCount} jadwal shift bulan ini telah didistribusikan ke aplikasi pegawai.`);
+      
+      if (batchDocs.length > 0) {
+        await batchSetDocs('schedules', batchDocs);
+      }
+      
+      toast.success(`Berhasil! ${batchDocs.length} jadwal shift bulan ini telah didistribusikan ke aplikasi pegawai.`);
     } catch (e: any) {
       console.error(e);
       toast.error("Gagal mem-push jadwal: " + e.message);

@@ -234,6 +234,38 @@ genericDbRouter.post('/rpc', async (req, res) => {
       }
       res.json({ id: docId });
     }
+    else if (action === 'batchSetDocs') {
+      const convertDates = (obj: any) => {
+        const res = { ...obj };
+        const dateKeyRegex = /^(createdAt|updatedAt|startDate|overrideDate|scheduleDate|attendanceDate|requestDate|date)$/;
+        for (const k in res) {
+          if (dateKeyRegex.test(k) && res[k] !== null && res[k] !== undefined) {
+             if (res[k] && typeof res[k] === 'object' && 'seconds' in res[k]) res[k] = new Date(res[k].seconds * 1000);
+             else if (typeof res[k] === 'number' || typeof res[k] === 'string') {
+               res[k] = new Date(res[k]);
+               if (isNaN(res[k].getTime())) delete res[k];
+             }
+          }
+        }
+        return res;
+      };
+
+      const docs = req.body.docs;
+      
+      await db.transaction(async (tx: any) => {
+        for (const doc of docs) {
+          const safeData = convertDates(doc.data);
+          const insertData = { ...safeData, id: doc.id };
+          const existing = await tx.select().from(table).where(eq(table.id, doc.id));
+          if (existing.length > 0) {
+            await tx.update(table).set(safeData).where(eq(table.id, doc.id));
+          } else {
+            await tx.insert(table).values(insertData);
+          }
+        }
+      });
+      res.json({ success: true, count: docs.length });
+    }
     else if (action === 'updateDoc') {
       const convertDates = (obj: any) => {
         const res = { ...obj };
@@ -289,7 +321,8 @@ genericDbRouter.post('/rpc', async (req, res) => {
       res.json({ id: docId });
     }
   } catch (err: any) {
-    console.error('RPC Error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('RPC Error:', err, err.cause);
+    const errorMessage = err.cause ? `${err.message} - Cause: ${err.cause.message || JSON.stringify(err.cause)}` : err.message;
+    res.status(500).json({ error: errorMessage });
   }
 });

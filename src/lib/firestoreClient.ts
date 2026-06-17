@@ -1,3 +1,10 @@
+import { initializeApp as realInitializeApp } from "firebase/app";
+import { getFirestore as realGetFirestore, collection as realFbCollection, doc as realFbDoc, setDoc as realFbSetDoc, addDoc as realFbAddDoc, updateDoc as realFbUpdateDoc, deleteDoc as realFbDeleteDoc, writeBatch as realFbWriteBatch } from "firebase/firestore";
+import firebaseConfigData from '../../firebase-applet-config.json';
+
+const realApp = realInitializeApp(firebaseConfigData);
+const realDb = realGetFirestore(realApp, firebaseConfigData.firestoreDatabaseId || "(default)");
+
 export const getFirestore = (...args: any[]) => ({});
 export const getStorage = (...args: any[]) => ({});
 export const db = {};
@@ -77,9 +84,40 @@ export async function addDoc(col: any, data: any) {
     body: JSON.stringify({ action: 'addDoc', collection: col.name, data })
   });
   if (!res.ok) throw new Error(await res.text());
-  return await res.json();
+  
+  const parsedResponse = await res.json();
+  const idFromPg = parsedResponse.id;
+  
+  // Dual write to real Firebase so mobile app stays synced
+  try {
+    const realRef = realFbDoc(realDb, col.name, idFromPg);
+    await realFbSetDoc(realRef, data);
+  } catch (e) { console.error("Firebase sync error on addDoc", e); }
+  
+  return parsedResponse;
 }
 
+export async function batchSetDocs(collectionName: string, docs: { id: string, data: any }[]) {
+  const res = await fetch('/api/sql/rpc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'batchSetDocs', collection: collectionName, docs })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  
+  const parsedResponse = await res.json();
+  
+  try {
+    const batch = realFbWriteBatch(realDb);
+    docs.forEach(d => {
+      const realRef = realFbDoc(realDb, collectionName, d.id);
+      batch.set(realRef, d.data, { merge: true });
+    });
+    await batch.commit();
+  } catch (e) { console.error("Firebase sync error on batchSetDocs", e); }
+  
+  return parsedResponse;
+}
 export async function setDoc(docObj: any, data: any, options?: any) {
   const res = await fetch('/api/sql/rpc', {
     method: 'POST',
@@ -87,7 +125,15 @@ export async function setDoc(docObj: any, data: any, options?: any) {
     body: JSON.stringify({ action: 'setDoc', collection: docObj.name, docId: docObj.id, data, options })
   });
   if (!res.ok) throw new Error(await res.text());
-  return await res.json();
+  
+  const parsedResponse = await res.json();
+  
+  try {
+    const realRef = realFbDoc(realDb, docObj.name, docObj.id);
+    await realFbSetDoc(realRef, data, options || {});
+  } catch (e) { console.error("Firebase sync error on setDoc", e); }
+  
+  return parsedResponse;
 }
 
 export async function updateDoc(docObj: any, data: any) {
@@ -97,7 +143,15 @@ export async function updateDoc(docObj: any, data: any) {
     body: JSON.stringify({ action: 'updateDoc', collection: docObj.name, docId: docObj.id, data })
   });
   if (!res.ok) throw new Error(await res.text());
-  return await res.json();
+  
+  const parsedResponse = await res.json();
+  
+  try {
+    const realRef = realFbDoc(realDb, docObj.name, docObj.id);
+    await realFbUpdateDoc(realRef, data);
+  } catch (e) { console.error("Firebase sync error on updateDoc", e); }
+  
+  return parsedResponse;
 }
 
 export async function deleteDoc(docObj: any) {
@@ -107,7 +161,15 @@ export async function deleteDoc(docObj: any) {
     body: JSON.stringify({ action: 'deleteDoc', collection: docObj.name, docId: docObj.id })
   });
   if (!res.ok) throw new Error(await res.text());
-  return await res.json();
+  
+  const parsedResponse = await res.json();
+  
+  try {
+    const realRef = realFbDoc(realDb, docObj.name, docObj.id);
+    await realFbDeleteDoc(realRef);
+  } catch (e) { console.error("Firebase sync error on deleteDoc", e); }
+  
+  return parsedResponse;
 }
 
 export function onSnapshot(queryObj: any, onNext: (snap: any) => void, onError?: (err: any) => void) {
