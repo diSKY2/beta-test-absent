@@ -3,12 +3,14 @@ import { Pool } from 'pg';
 import * as schema from './schema';
 
 export const createPool = () => {
-  if (process.env.DATABASE_URL) {
+  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL_POSTGRES_URL_NON_POOLING;
+  
+  if (dbUrl) {
     // Digunakan saat deploy ke Vercel jika menggunakan database gratis seperti Neon.tech atau Supabase 
     return new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: dbUrl,
       connectionTimeoutMillis: 15000,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+      ssl: { rejectUnauthorized: false },
     });
   }
 
