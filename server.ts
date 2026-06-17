@@ -5,12 +5,36 @@ import { db } from "./src/db";
 import { admins, employees } from "./src/db/schema";
 import { eq } from "drizzle-orm";
 import cors from "cors";
+import { v4 as uuidv4 } from "uuid";
 import { apiRouter } from "./server/api";
 import { genericDbRouter } from "./server/firestoreAdapter";
 
+async function seedAdmin() {
+  if (!process.env.DATABASE_URL && !process.env.DATABASE_PUBLIC_URL) return;
+  try {
+    const existingAdmin = await db.select().from(admins).where(eq(admins.email, "admin@admin.com")).limit(1);
+    if (existingAdmin.length === 0) {
+      console.log("Seeding initial super admin...");
+      await db.insert(admins).values({
+        id: uuidv4(),
+        email: "admin@admin.com",
+        password: "admin", 
+        name: "Super Admin",
+        role: "admin",
+      });
+      console.log("Super Admin seeded successfully: admin@admin.com / admin");
+    }
+  } catch (error: any) {
+    if (error.code !== '42P01') { // Ignore undefined table errors if migration hasn't run yet
+        console.error("Auto-Seed error:", error.message);
+    }
+  }
+}
+
 async function startServer() {
+  await seedAdmin();
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
   
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
