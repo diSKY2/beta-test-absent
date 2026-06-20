@@ -49,6 +49,10 @@ app.post("/api/mobile/login", async (req, res) => {
         name: employee.name,
         nik: employee.nik,
         role: employee.role,
+        profilePicUrl: employee.profilePicUrl,
+        departmentId: employee.departmentId,
+        subDepartmentId: employee.subDepartmentId,
+        locationId: employee.locationId
       }
     });
   } catch (error: any) {

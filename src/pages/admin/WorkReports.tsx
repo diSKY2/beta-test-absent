@@ -2,26 +2,60 @@ import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot } from '../../lib/firestoreClient';
 import { db } from '../../lib/firestoreClient';
 import { format } from 'date-fns';
-import { Briefcase, Search, Calendar, User as UserIcon } from 'lucide-react';
+import { Briefcase, Search, Calendar, User as UserIcon, Building, Layers, Users, ChevronDown, ChevronRight } from 'lucide-react';
 
 export default function WorkReports() {
   const [reports, setReports] = useState<any[]>([]);
   const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
+  const [locations, setLocations] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [subDepartments, setSubDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedLocationId, setSelectedLocationId] = useState<string>('all');
+  
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+  const [expandedLocs, setExpandedLocs] = useState<Record<string, boolean>>({});
+  const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({});
+  const [expandedSubDepts, setExpandedSubDepts] = useState<Record<string, boolean>>({});
+
+  const toggleLoc = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedLocs(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+  const toggleDept = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedDepts(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+  const toggleSubDept = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedSubDepts(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   useEffect(() => {
-    // Listen to employees to map names
+    const unsubLocs = onSnapshot(collection(db, 'locations'), (snap) => {
+      setLocations(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubDepts = onSnapshot(collection(db, 'departments'), (snap) => {
+      setDepartments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubSubDepts = onSnapshot(collection(db, 'sub_departments'), (snap) => {
+      setSubDepartments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
     const unSubEmp = onSnapshot(collection(db, 'employees'), (snap) => {
       const map: Record<string, any> = {};
       snap.docs.forEach(doc => {
-        map[doc.id] = doc.data();
+        map[doc.id] = { id: doc.id, ...doc.data() };
       });
       setEmployeesMap(map);
     });
 
-    // Listen to work reports
     const q = query(collection(db, 'work_reports'), orderBy('createdAt', 'desc'));
     const unSubRep = onSnapshot(q, (snap) => {
       setReports(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -29,19 +63,15 @@ export default function WorkReports() {
     });
 
     return () => {
+      unsubLocs();
+      unsubDepts();
+      unsubSubDepts();
       unSubEmp();
       unSubRep();
     };
   }, []);
 
-  const filteredReports = reports.filter(r => {
-    const emp = employeesMap[r.employeeId] || {};
-    const searchLow = searchQuery.toLowerCase();
-    const nameMatch = (emp.name || '').toLowerCase().includes(searchLow);
-    const descMatch = (r.description || '').toLowerCase().includes(searchLow);
-    const dateMatch = (r.date || '').toLowerCase().includes(searchLow);
-    return nameMatch || descMatch || dateMatch;
-  });
+  const employees = Object.values(employeesMap);
 
   return (
     <div className="space-y-8">
@@ -50,90 +80,208 @@ export default function WorkReports() {
           <Briefcase className="w-6 h-6 text-indigo-500" />
           Laporan Kerja Pegawai
         </h2>
-        <p className="text-slate-400">Pantau laporan kerja harian dan field activity pegawai.</p>
+        <p className="text-slate-400">Pilah laporan kerja per unit dan pantau field activity pegawai hari ini.</p>
       </div>
 
-      <div className="bg-[#0f172a] rounded-2xl shadow-lg border border-slate-800 p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Cari nama, deskripsi, atau tanggal..."
+      {/* Filters Header */}
+      <div className="p-4 border border-slate-800 rounded-xl mb-6 flex flex-wrap gap-4 items-center justify-between bg-[#111827]/80 shadow-lg">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input 
+              type="text" 
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-[#151f32] border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-colors"
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari nama, NIK..." 
+              className="bg-[#0f172a] border border-slate-700 text-sm text-white rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-64"
             />
           </div>
+          
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400">Tanggal:</span>
+            <input 
+              type="date" 
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="bg-[#0f172a] border border-slate-700 text-white rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+          
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400">Cabang/Pabrik:</span>
+            <select 
+              value={selectedLocationId}
+              onChange={(e) => setSelectedLocationId(e.target.value)}
+              className="bg-[#0f172a] border border-slate-700 text-white rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+            >
+              <option value="all">🌍 Semua Lokasi Kerja</option>
+              {locations.map(loc => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
+      </div>
 
-        {loading ? (
-          <div className="py-20 text-center text-slate-400">Memuat data...</div>
-        ) : filteredReports.length === 0 ? (
-          <div className="py-20 text-center text-slate-400">Belum ada laporan kerja.</div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredReports.map(report => {
-              const emp = employeesMap[report.employeeId] || { name: 'Unknown', role: 'Unknown' };
-              const dateObj = report.date ? new Date(report.date) : new Date(report.createdAt);
-              
-              return (
-                <div key={report.id} className="bg-[#151f32] rounded-xl overflow-hidden border border-slate-800 hover:border-slate-700 transition-colors flex flex-col">
-                  {report.photoUrl ? (
-                     <div 
-                       className="h-48 w-full bg-slate-900 cursor-pointer relative group"
-                       onClick={() => setSelectedImage(report.photoUrl)}
-                     >
-                       <img 
-                         src={report.photoUrl} 
-                         alt="Work Report" 
-                         className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
-                       />
-                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                         <span className="bg-black/70 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm">Lihat Penuh</span>
+      {loading ? (
+        <div className="py-20 text-center text-slate-400">Memuat data...</div>
+      ) : (
+        <div className="space-y-4">
+          {locations.filter(loc => selectedLocationId === 'all' || loc.id === selectedLocationId).map(loc => {
+            const isLocExpanded = !!expandedLocs[loc.id];
+            
+            const locEmployees = employees.filter(e => e.locationId === loc.id);
+            if (locEmployees.length === 0) return null;
+            
+            const locReports = reports.filter(r => {
+               const dateStr = format(new Date(r.date || r.createdAt), 'yyyy-MM-dd');
+               return dateStr === dateFilter && employeesMap[r.employeeId]?.locationId === loc.id;
+            });
+            const deptsInLoc = departments.filter(d => locEmployees.some(e => e.departmentId === d.id));
+
+            return (
+              <div key={loc.id} className="bg-[#0f172a] rounded-xl border border-slate-800 shadow-md overflow-hidden transition-all">
+                <div onClick={(e) => toggleLoc(loc.id, e)} className="p-4 flex items-center justify-between cursor-pointer hover:bg-[#151f32] select-none bg-[#111827]">
+                  <div className="flex items-center gap-4">
+                     <div className="w-10 h-10 rounded-full bg-indigo-900/10 border border-indigo-500/20 flex items-center justify-center">
+                       <Building className="w-5 h-5 text-indigo-400" />
+                     </div>
+                     <div>
+                       <div className="flex items-center gap-2 mb-1">
+                         {isLocExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                         <h4 className="font-bold text-white text-sm uppercase">{loc.name}</h4>
                        </div>
+                       <p className="text-xs text-slate-400 font-mono">Laporan: {locReports.length}</p>
                      </div>
-                  ) : (
-                     <div className="h-48 w-full bg-slate-800/50 flex flex-col items-center justify-center text-slate-500">
-                       <Briefcase className="w-8 h-8 mb-2 opacity-50" />
-                       <span className="text-xs">Tanpa Foto</span>
-                     </div>
-                  )}
-                  
-                  <div className="p-4 flex-1 flex flex-col">
-                    <div className="flex items-center gap-2 mb-3 text-xs text-slate-400">
-                       <Calendar className="w-3.5 h-3.5" />
-                       {format(dateObj, 'MMM dd, yyyy HH:mm')}
-                    </div>
-                    
-                    <div className="flex items-center gap-3 mb-4">
-                      {emp.profilePicUrl ? (
-                         <img src={emp.profilePicUrl} className="w-10 h-10 rounded-full border border-slate-700" alt="" />
-                      ) : (
-                         <div className="w-10 h-10 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                            <UserIcon className="w-5 h-5" />
-                         </div>
-                      )}
-                      <div>
-                        <div className="font-semibold text-white text-sm">{emp.name}</div>
-                        <div className="text-xs text-slate-500">{emp.role}</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-auto bg-black/20 p-3 rounded-lg border border-slate-800 text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-                       {report.description}
-                    </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+
+                {isLocExpanded && (
+                  <div className="border-t border-slate-800 p-4 space-y-4 bg-[#0B101A]">
+                    {deptsInLoc.length === 0 ? (
+                       <p className="text-slate-500 text-xs text-center py-4">Tidak ada departemen / karyawan di lokasi ini.</p>
+                    ) : deptsInLoc.map(dept => {
+                      const isDeptExpanded = !!expandedDepts[dept.id];
+                      const deptEmployees = locEmployees.filter(e => e.departmentId === dept.id);
+                      if(deptEmployees.length === 0) return null;
+
+                      const subDeptsInDept = subDepartments.filter(sd => deptEmployees.some(e => e.subDepartmentId === sd.id));
+                      const deptReports = locReports.filter(r => employeesMap[r.employeeId]?.departmentId === dept.id);
+
+                      return (
+                        <div key={dept.id} className="bg-[#0f172a]/50 rounded-lg border border-slate-700/50 overflow-hidden">
+                          <div onClick={(e) => toggleDept(dept.id, e)} className="p-3 flex items-center justify-between cursor-pointer hover:bg-[#151f32]/50 select-none">
+                            <div className="flex items-center gap-3 pl-2">
+                               <Layers className="w-4 h-4 text-blue-400" />
+                               <div className="flex items-center gap-2">
+                                 {isDeptExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                                 <h5 className="font-bold text-white text-sm">{dept.name}</h5>
+                                 <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">Departemen</span>
+                               </div>
+                            </div>
+                            <span className="text-xs font-mono text-slate-400 pr-2">{deptReports.length} Laporan</span>
+                          </div>
+
+                          {isDeptExpanded && (
+                            <div className="border-t border-slate-700/50 p-3 space-y-3 bg-[#0a0f18]">
+                              {subDeptsInDept.map(subDept => {
+                                const isSubDeptExpanded = !!expandedSubDepts[subDept.id];
+                                const subDeptEmployees = deptEmployees.filter(e => e.subDepartmentId === subDept.id);
+                                if(subDeptEmployees.length === 0) return null;
+
+                                const filteredSubDeptEmployees = subDeptEmployees.filter(emp => {
+                                   if (!searchQuery) return true;
+                                   const s = searchQuery.toLowerCase();
+                                   return (emp.name || '').toLowerCase().includes(s) || (emp.nik || '').toLowerCase().includes(s);
+                                });
+
+                                const subDeptReports = deptReports.filter(r => employeesMap[r.employeeId]?.subDepartmentId === subDept.id);
+
+                                return (
+                                  <div key={subDept.id} className="bg-[#151f32]/40 rounded border border-slate-700/30 overflow-hidden">
+                                    <div onClick={(e) => toggleSubDept(subDept.id, e)} className="p-3 flex items-center justify-between cursor-pointer hover:bg-[#1a263c]/50 select-none">
+                                      <div className="flex items-center gap-3 pl-4">
+                                         <Users className="w-4 h-4 text-emerald-400" />
+                                         <div className="flex items-center gap-2">
+                                           {isSubDeptExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                                           <h6 className="font-semibold text-slate-200 text-xs">{subDept.name}</h6>
+                                           <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">Sub Bagian / Regu</span>
+                                         </div>
+                                      </div>
+                                      <span className="text-xs font-mono text-slate-400 pr-2">{subDeptReports.length} Laporan</span>
+                                    </div>
+
+                                    {isSubDeptExpanded && (
+                                      <div className="border-t border-slate-700/30 bg-[#0f172a] p-4">
+                                        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                           {filteredSubDeptEmployees.map(emp => {
+                                              const empReports = subDeptReports.filter(r => r.employeeId === emp.id);
+                                              
+                                              return (
+                                                <div key={emp.id} className="bg-[#111827] border border-slate-800 rounded-lg p-4">
+                                                  <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-800/50">
+                                                    {emp?.profilePicUrl ? (
+                                                      <img src={emp.profilePicUrl} alt={emp.name} className="w-10 h-10 rounded-full object-cover border border-slate-700" referrerPolicy="no-referrer" />
+                                                    ) : (
+                                                      <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500 font-bold text-[10px]">
+                                                        {emp?.name ? emp.name.charAt(0).toUpperCase() : '?'}
+                                                      </div>
+                                                    )}
+                                                    <div>
+                                                      <div className="font-bold text-white text-sm">{emp.name}</div>
+                                                      <div className="text-[10px] text-slate-400 font-mono">NIK: {emp.nik || '-'}</div>
+                                                    </div>
+                                                  </div>
+
+                                                  <div className="space-y-3">
+                                                    {empReports.length === 0 ? (
+                                                       <p className="text-xs text-slate-500 italic text-center py-2">Belum ada laporan hari ini.</p>
+                                                    ) : empReports.map(report => (
+                                                      <div key={report.id} className="bg-slate-900/50 rounded-lg p-3 border border-slate-800/50">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                          <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-1.5 py-0.5 rounded font-mono">
+                                                            {format(new Date(report.createdAt), 'HH:mm')}
+                                                          </span>
+                                                          {report.photoUrl && (
+                                                             <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+                                                                📸 Ada Foto
+                                                             </span>
+                                                          )}
+                                                        </div>
+                                                        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{report.description}</p>
+                                                        {report.photoUrl && (
+                                                           <div className="mt-2 pt-2 border-t border-slate-800/50">
+                                                              <button onClick={() => setSelectedImage(report.photoUrl)} className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold">Lihat Lampiran Foto &rarr;</button>
+                                                           </div>
+                                                        )}
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              )
+                                           })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {selectedImage && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
           onClick={() => setSelectedImage(null)}
         >
           <img 
@@ -152,3 +300,4 @@ export default function WorkReports() {
     </div>
   );
 }
+

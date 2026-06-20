@@ -2,8 +2,23 @@
 
 Dokumen ini ditujukan untuk **Mobile Developer (Android/iOS)** yang bertugas mengembangkan Aplikasi Pegawai agar tersinkronisasi 100% secara utuh dengan Aplikasi Web HRD BOS Panel (Admin).
 
-> **PERHATIAN PENTING (UPDATE TERBARU):**
-> Aplikasi ini **TIDAK LAGI** menggunakan koneksi langsung ke Firebase Firestore. Anda wajib menggunakan REST API (HTTP) yang disediakan oleh server aplikasi Web (Node.js + PostgreSQL) untuk seluruh operasional transaksi data (kecuali untuk unggahan gambar yang tetap dapat menggunakan Storage/Provider eksternal sesuai kofigurasi server, atau Base64 data URI seperti sistem saat ini).
+> **PERHATIAN PENTING (UPDATE TERBARU JUN 2026): KITA SUDAH TIDAK PAKAI FIREBASE LAGI!**
+> Aplikasi ini **TIDAK LAGI** menggunakan koneksi langsung ke Firebase Firestore SDK native. Kita telah bermigrasi dan sekarang menggunakan **PostgreSQL + Node.js (Express) Backend**. 
+> Anda wajib menggunakan REST API (HTTP) yang disediakan oleh server aplikasi Web untuk seluruh operasional transaksi data.
+
+### Solusi Error yang Sering Terjadi (Troubleshooting):
+1. **Penting: Masalah HTTP 500 saat Laporan Kerja / Absen / Jadwal** 
+   - PostgreSQL ini menerapkan *Strict Foreign Keys* (Relasi Antar Tabel yang Ketat). 
+   - Jika Anda mengirim payload dengan `employeeId` berupa String ID lama (Firebase) atau Null, server akan menolak dan mengembalikan **HTTP 500 (Foreign Key Constraint Violation)**. 
+   - **SOLUSI:** Anda wajib *Clear Data / Log Out* aplikasi Android Anda (atau Hapus Instalasi lama), lalu Login ulang melalui endpoint `/api/mobile/login`. Anda akan mendapatkan **UUID PostgreSQL terbaru** yang harus Anda pakai sebagai `employeeId` untuk semua request selanjutnya.
+
+2. **Foto Profil Pegawai Tidak Tampil**
+   - Di endpoint `/api/mobile/login`, kini kami telah melampirkan field `profilePicUrl` serta info `departmentId` & `locationId`.
+   - **SOLUSI:** Tambahkan `val profilePicUrl: String = ""` di data class `EmployeeData` Anda, simpan profil URL tersebut ke SharedPref/Room saat login, dan gunakan image loader seperti Coil atau Glide (Android) untuk memuat fotonya di Dashboard.
+
+3. **Error HTTP 500 Saat Load Jadwal**
+   - Pastikan Payload RPC menggunakan huruf kecil: `{ "action": "getDocs", "collection": "schedules" }`, jangan huruf kapital.
+   - Jika Anda melakukan filter field dari Android, pastikan `employeeId` Anda Valid (lihat poin no 1 tentang UUID).
 
 ## 1. Koneksi API (HTTP REST)
 Base URL yang digunakan adalah domain dari aplikasi Web tempat server berjalan (didapat dari URL aplikasi saat dijalankan), ditambah parameter path sesuai route. 
