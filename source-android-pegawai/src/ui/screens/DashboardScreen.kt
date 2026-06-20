@@ -21,7 +21,10 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun DashboardScreen(
     employeeName: String,
+    departmentName: String,
+    subDepartmentName: String,
     onNavigateToAttendance: () -> Unit,
+    onNavigateToReport: () -> Unit,
     onLogOut: () -> Unit
 ) {
     Scaffold(
@@ -56,6 +59,9 @@ fun DashboardScreen(
                     Column {
                         Text(text = "Selamat Datang,", fontSize = 14.sp)
                         Text(text = employeeName, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        if (departmentName.isNotEmpty()) {
+                            Text(text = departmentName + if(subDepartmentName.isNotEmpty()) " - $subDepartmentName" else "", fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                        }
                     }
                 }
             }
@@ -82,13 +88,13 @@ fun DashboardScreen(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 MenuButton(
                     icon = Icons.Default.List,
-                    title = "Izin / Cuti",
+                    title = "Laporan Kerja",
                     modifier = Modifier.weight(1f),
-                    onClick = { /* TODO: Navigate to leaves */ }
+                    onClick = onNavigateToReport
                 )
                 MenuButton(
                     icon = Icons.Default.List,
-                    title = "Slip Gaji",
+                    title = "Izin / Slip",
                     modifier = Modifier.weight(1f),
                     onClick = { /* TODO: Navigate to payroll */ }
                 )

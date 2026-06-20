@@ -10,7 +10,9 @@ data class EmployeeData(
     val role: String = "",
     val locationId: String = "",
     val departmentId: String = "",
-    val subDepartmentId: String = ""
+    val subDepartmentId: String = "",
+    val departmentName: String = "",
+    val subDepartmentName: String = ""
 )
 
 object FirebaseManager {
@@ -29,14 +31,32 @@ object FirebaseManager {
                 Result.failure(Exception("NIK atau Password salah"))
             } else {
                 val doc = querySnapshot.documents.first()
+                val depId = doc.getString("departmentId") ?: ""
+                val subDepId = doc.getString("subDepartmentId") ?: ""
+                
+                var depName = ""
+                var subDepName = ""
+                
+                if (depId.isNotEmpty()) {
+                    val depDoc = db.collection("departments").document(depId).get().await()
+                    depName = depDoc.getString("name") ?: ""
+                }
+                
+                if (subDepId.isNotEmpty()) {
+                    val subDepDoc = db.collection("sub_departments").document(subDepId).get().await()
+                    subDepName = subDepDoc.getString("name") ?: ""
+                }
+
                 val employee = EmployeeData(
                     id = doc.id,
                     name = doc.getString("name") ?: "",
                     nik = doc.getString("nik") ?: "",
                     role = doc.getString("role") ?: "",
                     locationId = doc.getString("locationId") ?: "",
-                    departmentId = doc.getString("departmentId") ?: "",
-                    subDepartmentId = doc.getString("subDepartmentId") ?: ""
+                    departmentId = depId,
+                    subDepartmentId = subDepId,
+                    departmentName = depName,
+                    subDepartmentName = subDepName
                 )
                 Result.success(employee)
             }
@@ -56,6 +76,28 @@ object FirebaseManager {
                 "type" to type // "IN" atau "OUT"
             )
             db.collection("attendance_logs").add(attendanceData).await()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Fungsi Laporan Kerja (Menyimpan laporan ke koleksi work_reports)
+    suspend fun submitWorkReport(employeeId: String, description: String, photoUrl: String = ""): Result<Boolean> {
+        return try {
+            val reportData = hashMapOf(
+                "employeeId" to employeeId,
+                "date" to System.currentTimeMillis(),
+                "createdAt" to System.currentTimeMillis(),
+                "description" to description,
+                "photoUrl" to photoUrl
+            )
+            val docRef = db.collection("work_reports").document() // auto ID
+            
+            // To sync back to Web App, we should add an 'id' field inside the document if web uses it.
+            reportData["id"] = docRef.id
+            
+            docRef.set(reportData).await()
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)

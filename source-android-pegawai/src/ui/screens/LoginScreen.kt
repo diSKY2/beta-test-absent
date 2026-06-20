@@ -11,8 +11,10 @@ import androidx.compose.ui.unit.sp
 import com.hrdbospanel.app.data.FirebaseManager
 import kotlinx.coroutines.launch
 
+import com.hrdbospanel.app.data.EmployeeData
+
 @Composable
-fun LoginScreen(onLoginSuccess: (String, String) -> Unit) {
+fun LoginScreen(onLoginSuccess: (EmployeeData) -> Unit) {
     var nik by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -66,7 +68,7 @@ fun LoginScreen(onLoginSuccess: (String, String) -> Unit) {
                     val result = FirebaseManager.loginWithNik(nik, password)
                     isLoading = false
                     result.onSuccess { employee ->
-                        onLoginSuccess(employee.id, employee.name)
+                        onLoginSuccess(employee)
                     }.onFailure {
                         errorMessage = it.message ?: "Terjadi kesalahan"
                     }

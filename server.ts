@@ -48,6 +48,10 @@ async function startServer() {
     res.json({ status: "ok", message: "Cloud SQL Backend is running" });
   });
 
+  app.get("/api/debug-env", (req, res) => {
+    res.json({ dbUrl: !!process.env.DATABASE_URL, host: process.env.SQL_HOST, db: process.env.SQL_DB_NAME, postgresUrl: process.env.POSTGRES_URL });
+  });
+
   // API for Mobile App - Employee Login
   app.post("/api/mobile/login", async (req, res) => {
     try {

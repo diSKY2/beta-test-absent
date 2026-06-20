@@ -40,6 +40,8 @@ fun AppNavigation() {
     // State lokal untuk menyimpan session login
     var loggedInEmployeeId by remember { mutableStateOf<String?>(null) }
     var loggedInEmployeeName by remember { mutableStateOf("") }
+    var loggedInDepartmentName by remember { mutableStateOf("") }
+    var loggedInSubDepartmentName by remember { mutableStateOf("") }
 
     NavHost(
         navController = navController,
@@ -47,9 +49,11 @@ fun AppNavigation() {
     ) {
         composable("login") {
             LoginScreen(
-                onLoginSuccess = { id, name ->
-                    loggedInEmployeeId = id
-                    loggedInEmployeeName = name
+                onLoginSuccess = { employee ->
+                    loggedInEmployeeId = employee.id
+                    loggedInEmployeeName = employee.name
+                    loggedInDepartmentName = employee.departmentName
+                    loggedInSubDepartmentName = employee.subDepartmentName
                     navController.navigate("dashboard") {
                         popUpTo("login") { inclusive = true }
                     }
@@ -60,8 +64,13 @@ fun AppNavigation() {
         composable("dashboard") {
             DashboardScreen(
                 employeeName = loggedInEmployeeName,
+                departmentName = loggedInDepartmentName,
+                subDepartmentName = loggedInSubDepartmentName,
                 onNavigateToAttendance = {
                     navController.navigate("attendance")
+                },
+                onNavigateToReport = {
+                    navController.navigate("report")
                 },
                 onLogOut = {
                     loggedInEmployeeId = null
@@ -74,6 +83,13 @@ fun AppNavigation() {
         
         composable("attendance") {
             AttendanceScreen(
+                employeeId = loggedInEmployeeId ?: "",
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("report") {
+            com.hrdbospanel.app.ui.screens.WorkReportScreen(
                 employeeId = loggedInEmployeeId ?: "",
                 onBack = { navController.popBackStack() }
             )
