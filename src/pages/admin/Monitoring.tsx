@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, onSnapshot } from '../../lib/firesto
 import { PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
-import { Download, Search, MapPin, ChevronDown, Bell, ArrowRight, Layers } from 'lucide-react';
+import { Download, Search, MapPin, ChevronDown, ChevronRight, Bell, ArrowRight, Layers, Building, Users } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../../lib/utils';
 import { auth } from '../../lib/firestoreClient';
 import { useToast } from '../../providers/ToastProvider';
@@ -22,9 +22,41 @@ export default function Monitoring() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [attendances, setAttendances] = useState<any[]>([]);
 
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [subDepartments, setSubDepartments] = useState<any[]>([]);
+  
+  const [expandedLocs, setExpandedLocs] = useState<Record<string, boolean>>({});
+  const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({});
+  const [expandedSubDepts, setExpandedSubDepts] = useState<Record<string, boolean>>({});
+
+  const toggleLoc = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedLocs(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+  const toggleDept = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedDepts(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+  const toggleSubDept = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedSubDepts(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   useEffect(() => {
     const unsubLocs = onSnapshot(collection(db, 'locations'), (snap) => {
       setLocations(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error(error);
+    });
+
+    const unsubDepts = onSnapshot(collection(db, 'departments'), (snap) => {
+      setDepartments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error(error);
+    });
+
+    const unsubSubDepts = onSnapshot(collection(db, 'sub_departments'), (snap) => {
+      setSubDepartments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
       console.error(error);
     });
@@ -43,6 +75,8 @@ export default function Monitoring() {
 
     return () => {
       unsubLocs();
+      unsubDepts();
+      unsubSubDepts();
       unsubEmps();
     };
   }, []);
@@ -393,256 +427,310 @@ export default function Monitoring() {
         </div>
       </div>
 
-      {/* Geofence Grouping */}
+      {/* Hierarchical Grouping & Status Live Hari Ini */}
       <div className="pt-4">
         <div className="flex items-center gap-2 mb-1">
           <Layers className="w-5 h-5 text-indigo-400" />
           <h3 className="font-bold text-white text-base">Pengelompokan Pegawai Per Unit Kerja & Status Live Hari Ini</h3>
         </div>
-        <p className="text-xs text-slate-400 mb-6">Pilah penempatan staf per lokasi geofence dengan rincian kehadiran real-time hari ini.</p>
+        <p className="text-xs text-slate-400 mb-6">Pilah penempatan staf dengan gaya drop down (Kantor Cabang {'>'} Departemen {'>'} Sub Bagian/Regu). Pilih tanggal di atas untuk melihat status harian.</p>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          {locations.map(loc => {
-            // Calculate stats for this location today (using dateFrom)
+        {/* Filters Header (Moved from Table) */}
+        <div className="p-4 border border-slate-800 rounded-xl mb-6 flex flex-wrap gap-4 items-center justify-between bg-[#111827]/80 shadow-lg">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input 
+                type="text" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari nama, NIK..." 
+                className="bg-[#0f172a] border border-slate-700 text-sm text-white rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 w-64"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400">Dari:</span>
+              <input 
+                type="date" 
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-[#0f172a] border border-slate-700 text-white rounded px-2 py-1.5 focus:outline-none focus:border-teal-500"
+              />
+              <span className="text-slate-400 ml-2">Sampai (Export):</span>
+              <input 
+                type="date" 
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="bg-[#0f172a] border border-slate-700 text-white rounded px-2 py-1.5 focus:outline-none focus:border-teal-500"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400">Cabang/Pabrik:</span>
+              <select 
+                value={selectedLocationId}
+                onChange={(e) => setSelectedLocationId(e.target.value)}
+                className="bg-[#0f172a] border border-slate-700 text-white rounded px-2 py-1.5 focus:outline-none focus:border-teal-500"
+              >
+                <option value="all">🌍 Semua Lokasi Kerja</option>
+                {locations.map(loc => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <button 
+            onClick={handleExport}
+            className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-500 transition-colors shadow-lg"
+          >
+            <Download className="w-4 h-4" />
+            Export to Excel (CSV)
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {locations.filter(loc => selectedLocationId === 'all' || loc.id === selectedLocationId).map(loc => {
+            const isLocExpanded = !!expandedLocs[loc.id];
+            
+            // Calculate stats for loc
             const locEmployees = employees.filter(e => e.locationId === loc.id);
-            const locAttendances = attendances.filter(a => a.date === dateFrom && (a.locationId === loc.id || employeesMap[a.employeeId]?.locationId === loc.id));
+            if (locEmployees.length === 0) return null;
             
-            let locHadir = 0;
-            let locIzinSakit = 0;
+            const locAttendances = attendances.filter(a => a.date === dateFrom && employeesMap[a.employeeId]?.locationId === loc.id);
+            let locHadir = 0; let locIzinSakit = 0;
             locAttendances.forEach(a => {
-              const status = (a.status || '').toLowerCase().trim();
-              if (status === 'hadir') locHadir++;
-              if (status === 'izin' || status === 'sakit') locIzinSakit++;
+              const st = (a.status || '').toLowerCase().trim();
+              if (st === 'hadir') locHadir++;
+              if (st === 'izin' || st === 'sakit') locIzinSakit++;
             });
+            const locBelumAbsen = Math.max(0, locEmployees.length - (locHadir + locIzinSakit));
             
-            const locTotal = locEmployees.length;
-            const locBelumAbsen = Math.max(0, locTotal - (locHadir + locIzinSakit));
+            const deptsInLoc = departments.filter(d => locEmployees.some(e => e.departmentId === d.id));
 
             return (
-              <div 
-                key={loc.id} 
-                onClick={() => setSelectedLocationId(loc.id)}
-                className={`bg-[#0f172a] rounded-xl border p-4 flex items-center justify-between cursor-pointer hover:bg-[#151f32] transition-all duration-200 ${
-                  selectedLocationId === loc.id ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-800'
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                   <div className="w-10 h-10 rounded-full bg-indigo-900/10 border border-indigo-500/20 flex items-center justify-center">
-                     <MapPin className="w-5 h-5 text-indigo-400" />
-                   </div>
-                   <div>
-                     <div className="flex items-center gap-2 mb-1">
-                       <h4 className="font-bold text-white text-sm uppercase">{loc.name}</h4>
-                       <span className="px-1.5 py-0.5 rounded bg-[#1e293b] text-[10px] text-slate-400 font-mono">Radius: {loc.radius || 100}m</span>
+              <div key={loc.id} className="bg-[#0f172a] rounded-xl border border-slate-800 shadow-md overflow-hidden transition-all">
+                <div onClick={(e) => toggleLoc(loc.id, e)} className="p-4 flex items-center justify-between cursor-pointer hover:bg-[#151f32] select-none bg-[#111827]">
+                  <div className="flex items-center gap-4">
+                     <div className="w-10 h-10 rounded-full bg-indigo-900/10 border border-indigo-500/20 flex items-center justify-center">
+                       <Building className="w-5 h-5 text-indigo-400" />
                      </div>
-                     <p className="text-xs text-slate-400 font-mono">GPS: {loc.latitude || 0}, {loc.longitude || 0}</p>
-                   </div>
+                     <div>
+                       <div className="flex items-center gap-2 mb-1">
+                         {isLocExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                         <h4 className="font-bold text-white text-sm uppercase">{loc.name}</h4>
+                         <span className="px-1.5 py-0.5 rounded bg-[#1e293b] text-[10px] text-slate-400 font-mono">Radius: {loc.radius || 100}m</span>
+                       </div>
+                       <p className="text-xs text-slate-400 font-mono">GPS: {loc.latitude || 0}, {loc.longitude || 0}</p>
+                     </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <span className="px-2 py-1 rounded bg-teal-500/10 border border-teal-500/25 text-xs font-semibold text-teal-400">{locHadir} Hadir</span>
+                     <span className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/25 text-xs font-semibold text-amber-500">{locIzinSakit} Izin</span>
+                     <span className="px-2 py-1 rounded bg-[#1e293b] border border-slate-700 text-xs font-semibold text-slate-400">{locBelumAbsen} Belum Absen</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                   <span className="px-2 py-1 rounded bg-teal-500/10 border border-teal-500/25 text-xs font-semibold text-teal-400">{locHadir} Hadir</span>
-                   <span className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/25 text-xs font-semibold text-amber-500">{locIzinSakit} Izin</span>
-                   <span className="px-2 py-1 rounded bg-[#1e293b] border border-slate-700 text-xs font-semibold text-slate-400">{locBelumAbsen} Belum Absen</span>
-                </div>
+
+                {isLocExpanded && (
+                  <div className="border-t border-slate-800 p-4 space-y-4 bg-[#0B101A]">
+                    {deptsInLoc.length === 0 ? (
+                       <p className="text-slate-500 text-xs text-center py-4">Tidak ada departemen / karyawan di lokasi ini.</p>
+                    ) : deptsInLoc.map(dept => {
+                      const isDeptExpanded = !!expandedDepts[dept.id];
+                      const deptEmployees = locEmployees.filter(e => e.departmentId === dept.id);
+                      if(deptEmployees.length === 0) return null;
+
+                      const subDeptsInDept = subDepartments.filter(sd => deptEmployees.some(e => e.subDepartmentId === sd.id));
+
+                      return (
+                        <div key={dept.id} className="bg-[#0f172a]/50 rounded-lg border border-slate-700/50 overflow-hidden">
+                          <div onClick={(e) => toggleDept(dept.id, e)} className="p-3 flex items-center justify-between cursor-pointer hover:bg-[#151f32]/50 select-none">
+                            <div className="flex items-center gap-3 pl-2">
+                               <Layers className="w-4 h-4 text-blue-400" />
+                               <div className="flex items-center gap-2">
+                                 {isDeptExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                                 <h5 className="font-bold text-white text-sm">{dept.name}</h5>
+                                 <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">Departemen</span>
+                               </div>
+                            </div>
+                            <span className="text-xs font-mono text-slate-400 pr-2">{deptEmployees.length} Pegawai</span>
+                          </div>
+
+                          {isDeptExpanded && (
+                            <div className="border-t border-slate-700/50 p-3 space-y-3 bg-[#0a0f18]">
+                              {subDeptsInDept.map(subDept => {
+                                const isSubDeptExpanded = !!expandedSubDepts[subDept.id];
+                                const subDeptEmployees = deptEmployees.filter(e => e.subDepartmentId === subDept.id);
+                                if(subDeptEmployees.length === 0) return null;
+
+                                const filteredSubDeptEmployees = subDeptEmployees.filter(emp => {
+                                   if (!searchQuery) return true;
+                                   const s = searchQuery.toLowerCase();
+                                   return (emp.name || '').toLowerCase().includes(s) || (emp.nik || '').toLowerCase().includes(s);
+                                });
+
+                                return (
+                                  <div key={subDept.id} className="bg-[#151f32]/40 rounded border border-slate-700/30 overflow-hidden">
+                                    <div onClick={(e) => toggleSubDept(subDept.id, e)} className="p-3 flex items-center justify-between cursor-pointer hover:bg-[#1a263c]/50 select-none">
+                                      <div className="flex items-center gap-3 pl-4">
+                                         <Users className="w-4 h-4 text-emerald-400" />
+                                         <div className="flex items-center gap-2">
+                                           {isSubDeptExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                                           <h6 className="font-semibold text-slate-200 text-xs">{subDept.name}</h6>
+                                           <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">Sub Bagian / Regu</span>
+                                         </div>
+                                      </div>
+                                      <span className="text-xs font-mono text-slate-400 pr-2">{subDeptEmployees.length} Pegawai</span>
+                                    </div>
+
+                                    {isSubDeptExpanded && (
+                                      <div className="border-t border-slate-700/30 overflow-x-auto bg-[#0f172a]">
+                                        <table className="w-full text-left text-xs whitespace-nowrap table-fixed">
+                                          <thead className="bg-[#111827] border-b border-slate-800 uppercase font-mono tracking-wider text-slate-400">
+                                            <tr>
+                                              <th className="px-4 py-3 font-semibold w-64">Karyawan</th>
+                                              <th className="px-4 py-3 font-semibold w-24">Tanggal</th>
+                                              <th className="px-4 py-3 font-semibold w-32">Roster Shift</th>
+                                              <th className="px-4 py-3 font-semibold w-36">Absen Masuk</th>
+                                              <th className="px-4 py-3 font-semibold w-36">Absen Pulang</th>
+                                              <th className="px-4 py-3 font-semibold w-24">Status</th>
+                                              <th className="px-4 py-3 font-semibold w-36">Lembur Masuk</th>
+                                              <th className="px-4 py-3 font-semibold w-36">Lembur Pulang</th>
+                                              <th className="px-4 py-3 font-semibold w-48">Lokasi GPS & Radius</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-slate-800/80">
+                                            {filteredSubDeptEmployees.length === 0 ? (
+                                              <tr>
+                                                <td colSpan={9} className="px-4 py-6 text-center text-slate-500 italic">
+                                                  Pencarian tidak menemukan karyawan di regu ini.
+                                                </td>
+                                              </tr>
+                                            ) : filteredSubDeptEmployees.map(emp => {
+                                               const a = attendances.find(attn => attn.date === dateFrom && attn.employeeId === emp.id) || {
+                                                 status: 'Belum Absen',
+                                                 employeeId: emp.id,
+                                                 date: dateFrom
+                                               };
+
+                                               return (
+                                                 <tr key={emp.id} className="hover:bg-[#151f32]/50 transition-colors">
+                                                   <td className="px-4 py-3">
+                                                     <div className="flex items-center gap-3">
+                                                       {emp?.profilePicUrl ? (
+                                                         <img src={emp.profilePicUrl} alt={emp.name} className="w-8 h-8 rounded-full object-cover border border-slate-700" referrerPolicy="no-referrer" />
+                                                       ) : (
+                                                         <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500 font-bold text-[10px]">
+                                                           {emp?.name ? emp.name.charAt(0).toUpperCase() : '?'}
+                                                         </div>
+                                                       )}
+                                                       <div className="truncate w-40">
+                                                         <div className="font-bold text-white text-xs truncate">{emp.name}</div>
+                                                         <div className="text-[10px] text-slate-400 font-mono truncate">NIK: {emp.nik || '-'}</div>
+                                                       </div>
+                                                     </div>
+                                                   </td>
+                                                   <td className="px-4 py-3 font-mono text-slate-400 text-[10px]">{a.date}</td>
+                                                   <td className="px-4 py-3 text-slate-400 text-[10px] truncate">{a.shiftName || (a.shiftStart ? `${a.shiftStart} - ${a.shiftEnd}` : '-')}</td>
+                                                   <td className="px-4 py-3 font-mono text-teal-400 text-[10px]">
+                                                      <div className="flex items-center gap-2">
+                                                        <span>{a.timeIn || '--:--'}</span>
+                                                        {(a.photoUrlIn || a.photoUrl) ? (
+                                                          <a href={a.photoUrlIn || a.photoUrl} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
+                                                            <img src={a.photoUrlIn || a.photoUrl} alt="Selfie In" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-700 hover:border-teal-500" />
+                                                          </a>
+                                                        ) : (
+                                                          <span className="text-[9px] text-slate-600 bg-slate-800 px-1 py-0.5 rounded">No Photo</span>
+                                                        )}
+                                                      </div>
+                                                   </td>
+                                                   <td className="px-4 py-3 font-mono text-slate-400 text-[10px]">
+                                                      <div className="flex items-center gap-2">
+                                                        <span>{a.timeOut || '--:--'}</span>
+                                                        {a.photoUrlOut ? (
+                                                          <a href={a.photoUrlOut} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
+                                                            <img src={a.photoUrlOut} alt="Selfie Out" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-700 hover:border-teal-500" />
+                                                          </a>
+                                                        ) : (
+                                                          <span className="text-[9px] text-slate-600 bg-slate-800 px-1 py-0.5 rounded">No Photo</span>
+                                                        )}
+                                                      </div>
+                                                   </td>
+                                                   <td className="px-4 py-3">
+                                                     <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase
+                                                       ${a.status === 'Hadir' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' :
+                                                         a.status === 'Izin' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                                                         a.status === 'Sakit' ? 'bg-amber-900/200/10 text-amber-400 border border-amber-500/20' :
+                                                         a.status === 'Belum Absen' ? 'bg-slate-800 text-slate-400 border border-slate-700' :
+                                                         'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                                       }`}>
+                                                       {a.status}
+                                                     </span>
+                                                   </td>
+                                                   <td className="px-4 py-3 text-slate-400 font-mono text-[10px]">
+                                                      <div className="flex items-center gap-2">
+                                                        <span>{a.overtimeIn || '--:--'}</span>
+                                                        {a.photoUrlOvertimeIn ? (
+                                                          <a href={a.photoUrlOvertimeIn} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
+                                                            <img src={a.photoUrlOvertimeIn} alt="Selfie OT In" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-700 hover:border-teal-500" />
+                                                          </a>
+                                                        ) : (
+                                                          <span className="text-[9px] text-slate-600 bg-slate-800 px-1 py-0.5 rounded">No Photo</span>
+                                                        )}
+                                                      </div>
+                                                   </td>
+                                                   <td className="px-4 py-3 text-slate-400 font-mono text-[10px]">
+                                                      <div className="flex items-center gap-2">
+                                                        <span>{a.overtimeOut || '--:--'}</span>
+                                                        {a.photoUrlOvertimeOut ? (
+                                                          <a href={a.photoUrlOvertimeOut} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
+                                                            <img src={a.photoUrlOvertimeOut} alt="Selfie OT Out" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-700 hover:border-teal-500" />
+                                                          </a>
+                                                        ) : (
+                                                          <span className="text-[9px] text-slate-600 bg-slate-800 px-1 py-0.5 rounded">No Photo</span>
+                                                        )}
+                                                      </div>
+                                                   </td>
+                                                   <td className="px-4 py-3 text-slate-400 font-mono text-[9px] truncate">
+                                                     {a.latitude && a.longitude ? (
+                                                       <div className="truncate w-32">
+                                                         <div>{Number(a.latitude).toFixed(5)}, {Number(a.longitude).toFixed(5)}</div>
+                                                         {a.distanceMeter !== undefined && (
+                                                           <div className={a.distanceMeter <= (a.allowedRadius || 100) ? 'text-teal-400' : 'text-rose-400'}>
+                                                             Jarak: {Math.round(a.distanceMeter)}m ({a.distanceMeter <= (a.allowedRadius || 100) ? 'Radius ✓' : 'Luar Radius ✗'})
+                                                           </div>
+                                                         )}
+                                                       </div>
+                                                     ) : (
+                                                       <span className="text-slate-600 italic">GPS N/A</span>
+                                                     )}
+                                                   </td>
+                                                 </tr>
+                                               );
+                                            })}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
           {locations.length === 0 && (
-            <div className="col-span-full px-4 py-8 text-center text-sm text-slate-600 border border-dashed border-slate-800 rounded-xl bg-[#0a111a]">
+            <div className="px-4 py-8 text-center text-sm text-slate-600 border border-dashed border-slate-800 rounded-xl bg-[#0a111a]">
                Belum ada lokasi geofencing yang dibuat. Silakan tambahkan lokasi di menu Geofencing.
             </div>
           )}
         </div>
-      </div>
-
-      {/* Table Section */}
-      <div className="bg-[#0f172a] rounded-xl border border-slate-800 shadow-lg overflow-hidden flex flex-col mt-6">
-         {/* Filters Header */}
-         <div className="p-4 border-b border-slate-800 flex flex-wrap gap-4 items-center justify-between bg-[#111827]/80">
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input 
-                  type="text" 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari nama, NIK, status..." 
-                  className="bg-[#0f172a] border border-slate-700 text-sm text-white rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 w-64"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-slate-400">Dari:</span>
-                <input 
-                  type="date" 
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="bg-[#0f172a] border border-slate-700 text-white rounded px-2 py-1.5 focus:outline-none focus:border-teal-500"
-                />
-                <span className="text-slate-400 ml-2">Sampai:</span>
-                <input 
-                  type="date" 
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="bg-[#0f172a] border border-slate-700 text-white rounded px-2 py-1.5 focus:outline-none focus:border-teal-500"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-slate-400">Cabang/Pabrik:</span>
-                <select 
-                  value={selectedLocationId}
-                  onChange={(e) => setSelectedLocationId(e.target.value)}
-                  className="bg-[#0f172a] border border-slate-700 text-white rounded px-2 py-1.5 focus:outline-none focus:border-teal-500"
-                >
-                  <option value="all">🌍 Semua Lokasi Kerja</option>
-                  {locations.map(loc => (
-                    <option key={loc.id} value={loc.id}>{loc.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <button 
-              onClick={handleExport}
-              className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-500 transition-colors shadow-lg"
-            >
-              <Download className="w-4 h-4" />
-              Export to Excel (CSV)
-            </button>
-         </div>
-
-         {/* Actual Table */}
-         <div className="overflow-x-auto">
-           <table className="w-full text-left text-xs whitespace-nowrap">
-             <thead className="bg-[#151f32] border-b border-slate-800 uppercase font-mono tracking-wider text-slate-400">
-               <tr>
-                 <th className="px-6 py-4 font-semibold">Karyawan</th>
-                 <th className="px-6 py-4 font-semibold">Tanggal</th>
-                 <th className="px-6 py-4 font-semibold">Roster Shift</th>
-                 <th className="px-6 py-4 font-semibold">Absen Masuk</th>
-                 <th className="px-6 py-4 font-semibold">Absen Pulang</th>
-                 <th className="px-6 py-4 font-semibold">Status</th>
-                 <th className="px-6 py-4 font-semibold">Lembur Masuk</th>
-                 <th className="px-6 py-4 font-semibold">Lembur Pulang</th>
-                 <th className="px-6 py-4 font-semibold">Lokasi GPS & Radius</th>
-               </tr>
-             </thead>
-             <tbody className="divide-y divide-slate-800/80">
-               {attendances.length === 0 ? (
-                 <tr>
-                   <td colSpan={9} className="px-6 py-12 text-center text-slate-400 italic">
-                     Tidak ada data terekam untuk parameter ini.
-                   </td>
-                 </tr>
-               ) : (
-                 visibleAttendances.filter(a => {
-                   if (!searchQuery) return true;
-                   const s = searchQuery.toLowerCase();
-                   const emp = employeesMap[a.employeeId];
-                   const empName = emp ? (emp.name || '').toLowerCase() : '';
-                   const empNik = emp ? (emp.nik || '').toLowerCase() : '';
-                   const dateStr = (a.date || '').toLowerCase();
-                   const statusStr = (a.status || '').toLowerCase();
-                   return empName.includes(s) || empNik.includes(s) || dateStr.includes(s) || statusStr.includes(s) || a.employeeId.toLowerCase().includes(s);
-                 }).map((a) => {
-                   const emp = employeesMap[a.employeeId];
-                   return (
-                   <tr key={a.id} className="hover:bg-[#151f32]/50 transition-colors">
-                     <td className="px-6 py-4">
-                       <div className="flex items-center gap-3">
-                         {emp?.profilePicUrl ? (
-                           <img src={emp.profilePicUrl} alt={emp.name} className="w-10 h-10 rounded-full object-cover border border-slate-700" referrerPolicy="no-referrer" />
-                         ) : (
-                           <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500 font-bold">
-                             {emp?.name ? emp.name.charAt(0).toUpperCase() : '?'}
-                           </div>
-                         )}
-                         {emp ? (
-                           <div>
-                             <div className="font-bold text-white">{emp.name}</div>
-                             <div className="text-[10px] text-slate-400 font-mono">NIK: {emp.nik || '-'}</div>
-                           </div>
-                         ) : (
-                           <div>
-                             <div className="font-bold text-white">ID Pegawai</div>
-                             <div className="text-[10px] text-slate-500 font-mono">{a.employeeId}</div>
-                           </div>
-                         )}
-                       </div>
-                     </td>
-                     <td className="px-6 py-4 font-mono text-slate-400">{a.date}</td>
-                     <td className="px-6 py-4 text-slate-400">{a.shiftName || (a.shiftStart ? `${a.shiftStart} - ${a.shiftEnd}` : '-')}</td>
-                     <td className="px-6 py-4 font-mono text-teal-400">
-                        <div className="flex items-center gap-2">
-                          <span>{a.timeIn || '--:--'}</span>
-                          {(a.photoUrlIn || a.photoUrl) && (
-                            <a href={a.photoUrlIn || a.photoUrl} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
-                              <img src={a.photoUrlIn || a.photoUrl} alt="Selfie In" referrerPolicy="no-referrer" className="w-8 h-8 rounded object-cover border border-slate-700 hover:border-teal-500" />
-                            </a>
-                          )}
-                        </div>
-                     </td>
-                     <td className="px-6 py-4 font-mono text-slate-400">
-                        <div className="flex items-center gap-2">
-                          <span>{a.timeOut || '--:--'}</span>
-                          {a.photoUrlOut && (
-                            <a href={a.photoUrlOut} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
-                              <img src={a.photoUrlOut} alt="Selfie Out" referrerPolicy="no-referrer" className="w-8 h-8 rounded object-cover border border-slate-700 hover:border-teal-500" />
-                            </a>
-                          )}
-                        </div>
-                     </td>
-                     <td className="px-6 py-4">
-                       <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase
-                         ${a.status === 'Hadir' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' :
-                           a.status === 'Izin' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                           a.status === 'Sakit' ? 'bg-amber-900/200/10 text-amber-400 border border-amber-500/20' :
-                           'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                         }`}>
-                         {a.status}
-                       </span>
-                     </td>
-                     <td className="px-6 py-4 text-slate-400 font-mono">
-                        <div className="flex items-center gap-2">
-                          <span>{a.overtimeIn || '--:--'}</span>
-                          {a.photoUrlOvertimeIn && (
-                            <a href={a.photoUrlOvertimeIn} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
-                              <img src={a.photoUrlOvertimeIn} alt="Selfie OT In" referrerPolicy="no-referrer" className="w-8 h-8 rounded object-cover border border-slate-700 hover:border-teal-500" />
-                            </a>
-                          )}
-                        </div>
-                     </td>
-                     <td className="px-6 py-4 text-slate-400 font-mono">
-                        <div className="flex items-center gap-2">
-                          <span>{a.overtimeOut || '--:--'}</span>
-                          {a.photoUrlOvertimeOut && (
-                            <a href={a.photoUrlOvertimeOut} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
-                              <img src={a.photoUrlOvertimeOut} alt="Selfie OT Out" referrerPolicy="no-referrer" className="w-8 h-8 rounded object-cover border border-slate-700 hover:border-teal-500" />
-                            </a>
-                          )}
-                        </div>
-                     </td>
-                     <td className="px-6 py-4 text-slate-400 font-mono text-[10px]">
-                       {a.latitude && a.longitude ? (
-                         <div>
-                           <div>{Number(a.latitude).toFixed(5)}, {Number(a.longitude).toFixed(5)}</div>
-                           {a.distanceMeter !== undefined && (
-                             <div className={a.distanceMeter <= (a.allowedRadius || 100) ? 'text-teal-400' : 'text-rose-400'}>
-                               Jarak: {Math.round(a.distanceMeter)}m ({a.distanceMeter <= (a.allowedRadius || 100) ? 'Radius ✓' : 'Luar Radius ✗'})
-                             </div>
-                           )}
-                         </div>
-                       ) : (
-                         <span>GPS N/A</span>
-                       )}
-                     </td>
-                   </tr>
-                 );
-               })
-               )}
-             </tbody>
-           </table>
-         </div>
       </div>
     </div>
   );
