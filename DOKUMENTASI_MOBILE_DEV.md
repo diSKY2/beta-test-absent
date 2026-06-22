@@ -112,6 +112,7 @@ Sesuai dengan sinkronisasi ke Web Panel, pastikan aplikasi mobile yang Anda bang
     *   Mendeteksi keberadaan pegawai dalam radius lokasi cabang (Geofencing).
     *   Mewajibkan mengambil foto Selfie sebagai bukti kehadiran (menggunakan Kamera secara langsung, bukan dari galeri).
     *   Sistem validasi keterlambatan.
+    *   **Fitur Ketua Regu (Group Attendance):** Jika role pegawai (dari response login) adalah "Ketua Regu" atau mengandung "Ketua", wajib ada opsi **Absen Anggota**. Lakukan request `action: getDocs` ke `employees` dengan filter `subDepartmentId` milik ketua. Ketua dapat melakukan Clock In/Out untuk anggotanya (cukup kirimkan `employeeId` anggota ke endpoint absen, tidak perlu ubah endpoint backend).
 4.  **Pengajuan Izin & Cuti**: 
     *   Form pengajuan jenis Izin/Sakit/Cuti. 
     *   Input Upload Foto/Attachment (khusus Sakit wajib ada memo/surat dokter).

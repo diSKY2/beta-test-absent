@@ -1,13 +1,21 @@
 package com.hrdbospanel.app.data
 
-import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.tasks.await
+import org.json.JSONObject
+import org.json.JSONArray
+import java.net.HttpURLConnection
+import java.net.URL
+import java.io.OutputStreamWriter
+import java.io.InputStreamReader
+import java.io.BufferedReader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class EmployeeData(
     val id: String = "",
     val name: String = "",
     val nik: String = "",
     val role: String = "",
+    val profilePicUrl: String = "",
     val locationId: String = "",
     val departmentId: String = "",
     val subDepartmentId: String = "",
@@ -16,89 +24,135 @@ data class EmployeeData(
 )
 
 object FirebaseManager {
-    private val db = FirebaseFirestore.getInstance()
+    // GANTI IP INI KE IP KOMPUTER SERVER (Jika pakai emulator Android Studio: 10.0.2.2)
+    // Jika dideploy ke Vercel, ganti dengan URL Vercel.
+    private const val BASE_URL = "http://10.0.2.2:3000/api"
 
-    // Fungsi Login menggunakan NIK dan Password langsung menembak Firestore
+    private suspend fun postRequest(endpoint: String, jsonBody: String): String = withContext(Dispatchers.IO) {
+        val url = URL("$BASE_URL$endpoint")
+        val connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.doOutput = true
+
+        OutputStreamWriter(connection.outputStream).use { writer ->
+            writer.write(jsonBody)
+            writer.flush()
+        }
+
+        val responseCode = connection.responseCode
+        val inputStream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
+        
+        val response = BufferedReader(InputStreamReader(inputStream)).use { it.readText() }
+        
+        if (responseCode !in 200..299) {
+            throw Exception("HTTP $responseCode: $response")
+        }
+        return@withContext response
+    }
+
     suspend fun loginWithNik(nik: String, password: String): Result<EmployeeData> {
         return try {
-            val querySnapshot = db.collection("employees")
-                .whereEqualTo("nik", nik)
-                .whereEqualTo("password", password)
-                .get()
-                .await()
+            val jsonBody = JSONObject().apply {
+                put("nik", nik)
+                put("password", password)
+            }.toString()
 
-            if (querySnapshot.isEmpty) {
-                Result.failure(Exception("NIK atau Password salah"))
-            } else {
-                val doc = querySnapshot.documents.first()
-                val depId = doc.getString("departmentId") ?: ""
-                val subDepId = doc.getString("subDepartmentId") ?: ""
-                
-                var depName = ""
-                var subDepName = ""
-                
-                if (depId.isNotEmpty()) {
-                    val depDoc = db.collection("departments").document(depId).get().await()
-                    depName = depDoc.getString("name") ?: ""
-                }
-                
-                if (subDepId.isNotEmpty()) {
-                    val subDepDoc = db.collection("sub_departments").document(subDepId).get().await()
-                    subDepName = subDepDoc.getString("name") ?: ""
-                }
+            val response = postRequest("/mobile/login", jsonBody)
+            val jsonResponse = JSONObject(response)
+            val data = jsonResponse.getJSONObject("data")
 
-                val employee = EmployeeData(
-                    id = doc.id,
-                    name = doc.getString("name") ?: "",
-                    nik = doc.getString("nik") ?: "",
-                    role = doc.getString("role") ?: "",
-                    locationId = doc.getString("locationId") ?: "",
-                    departmentId = depId,
-                    subDepartmentId = subDepId,
-                    departmentName = depName,
-                    subDepartmentName = subDepName
-                )
-                Result.success(employee)
-            }
+            val employee = EmployeeData(
+                id = data.optString("id", ""),
+                name = data.optString("name", ""),
+                nik = data.optString("nik", ""),
+                role = data.optString("role", ""),
+                profilePicUrl = data.optString("profilePicUrl", ""),
+                locationId = data.optString("locationId", ""),
+                departmentId = data.optString("departmentId", ""),
+                subDepartmentId = data.optString("subDepartmentId", "")
+                // we can map dept/subDept names if needed by doing more RPC calls
+            )
+            Result.success(employee)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // Fungsi Absensi (Mencatat clock in Firestore attendance log)
     suspend fun submitAttendance(employeeId: String, lat: Double, lng: Double, type: String): Result<Boolean> {
         return try {
-            val attendanceData = hashMapOf(
-                "employeeId" to employeeId,
-                "timestamp" to System.currentTimeMillis(),
-                "latitude" to lat,
-                "longitude" to lng,
-                "type" to type // "IN" atau "OUT"
-            )
-            db.collection("attendance_logs").add(attendanceData).await()
+            val payload = JSONObject().apply {
+                put("employeeId", employeeId)
+                put("timestamp", System.currentTimeMillis())
+                put("latitude", lat)
+                put("longitude", lng)
+                put("type", type)
+            }
+
+            val jsonBody = JSONObject().apply {
+                put("action", "addDoc")
+                put("collection", "attendance_logs")
+                put("data", payload)
+            }.toString()
+
+            postRequest("/sql/rpc", jsonBody)
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // Fungsi Laporan Kerja (Menyimpan laporan ke koleksi work_reports)
     suspend fun submitWorkReport(employeeId: String, description: String, photoUrl: String = ""): Result<Boolean> {
         return try {
-            val reportData = hashMapOf(
-                "employeeId" to employeeId,
-                "date" to System.currentTimeMillis(),
-                "createdAt" to System.currentTimeMillis(),
-                "description" to description,
-                "photoUrl" to photoUrl
-            )
-            val docRef = db.collection("work_reports").document() // auto ID
-            
-            // To sync back to Web App, we should add an 'id' field inside the document if web uses it.
-            reportData["id"] = docRef.id
-            
-            docRef.set(reportData).await()
+            val payload = JSONObject().apply {
+                put("employeeId", employeeId)
+                put("date", System.currentTimeMillis())
+                put("description", description)
+                put("photoUrl", photoUrl)
+            }
+
+            val jsonBody = JSONObject().apply {
+                put("action", "addDoc")
+                put("collection", "work_reports")
+                put("data", payload)
+            }.toString()
+
+            postRequest("/sql/rpc", jsonBody)
             Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // --- FITUR KETUA REGU: AMBIL ANGGOTA TIM ---
+    suspend fun getTeamMembers(subDepartmentId: String): Result<List<EmployeeData>> {
+        return try {
+            val filters = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("field", "subDepartmentId")
+                    put("op", "==")
+                    put("value", subDepartmentId)
+                })
+            }
+            val jsonBody = JSONObject().apply {
+                put("action", "getDocs")
+                put("collection", "employees")
+                put("filters", filters)
+            }.toString()
+
+            val response = postRequest("/sql/rpc", jsonBody)
+            val jsonArray = JSONArray(response)
+            val members = mutableListOf<EmployeeData>()
+            for (i in 0 until jsonArray.length()) {
+                val data = jsonArray.getJSONObject(i)
+                members.add(EmployeeData(
+                    id = data.optString("id", ""),
+                    name = data.optString("name", ""),
+                    nik = data.optString("nik", ""),
+                    role = data.optString("role", "")
+                ))
+            }
+            Result.success(members)
         } catch (e: Exception) {
             Result.failure(e)
         }
