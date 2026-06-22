@@ -491,7 +491,7 @@ export default function Monitoring() {
 
         <div className="space-y-4">
           {locations.filter(loc => selectedLocationId === 'all' || loc.id === selectedLocationId).map(loc => {
-            const isLocExpanded = !!expandedLocs[loc.id];
+            const isLocExpanded = expandedLocs[loc.id] !== false;
             
             // Calculate stats for loc
             const locEmployees = employees.filter(e => e.locationId === loc.id);
@@ -536,7 +536,7 @@ export default function Monitoring() {
                     {deptsInLoc.length === 0 ? (
                        <p className="text-slate-500 text-xs text-center py-4">Tidak ada departemen / karyawan di lokasi ini.</p>
                     ) : deptsInLoc.map(dept => {
-                      const isDeptExpanded = !!expandedDepts[dept.id];
+                      const isDeptExpanded = expandedDepts[dept.id] !== false;
                       const deptEmployees = locEmployees.filter(e => e.departmentId === dept.id);
                       if(deptEmployees.length === 0) return null;
 
@@ -559,7 +559,7 @@ export default function Monitoring() {
                           {isDeptExpanded && (
                             <div className="border-t border-slate-700/50 p-3 space-y-3 bg-[#0a0f18]">
                               {subDeptsInDept.map(subDept => {
-                                const isSubDeptExpanded = !!expandedSubDepts[subDept.id];
+                                const isSubDeptExpanded = expandedSubDepts[subDept.id] !== false;
                                 const subDeptEmployees = deptEmployees.filter(e => e.subDepartmentId === subDept.id);
                                 if(subDeptEmployees.length === 0) return null;
 

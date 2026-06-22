@@ -12,11 +12,19 @@ Dokumen ini ditujukan untuk **Mobile Developer (Android/iOS)** yang bertugas men
    - Jika Anda mengirim payload dengan `employeeId` berupa String ID lama (Firebase) atau Null, server akan menolak dan mengembalikan **HTTP 500 (Foreign Key Constraint Violation)**. 
    - **SOLUSI:** Anda wajib *Clear Data / Log Out* aplikasi Android Anda (atau Hapus Instalasi lama), lalu Login ulang melalui endpoint `/api/mobile/login`. Anda akan mendapatkan **UUID PostgreSQL terbaru** yang harus Anda pakai sebagai `employeeId` untuk semua request selanjutnya.
 
-2. **Foto Profil Pegawai Tidak Tampil**
+2. **Laporan / Absen Gagal Dikirim (Masalah Jaringan / Endpoint / Timeout)**
+   - Jika menggunakan Device / HP Asli (Android/iOS real device), **JANGAN** menggunakan IP `http://10.0.2.2:3000`. IP tersebut *hanya* berlaku di dalam Emulator Android Studio.
+   - **SOLUSI:** Gunakan URL Publik / Domain production aplikasi web ini (misalnya `https://nama-aplikasi-anda.run.app`) sebagai `BASE_URL` di konfigurasi jaringan Anda.
+
+3. **Gagal Karena Ukuran Foto Terlalu Besar (Payload Too Large / 413)**
+   - Endpoint HTTP Express kami memiliki kapabilitas memuat data, namun sebaiknya foto Base64 diperkecil ukurannya untuk menghemat bandwidth.
+   - **SOLUSI:** **WAJIB** resize / compress resolusi foto laporan atau selfie di dalam sisi Mobile/Android (misalnya kompres kualitas JPEG hingga maksimum 1 MB atau kurang dari 1000x1000 pixel) sebelum disisipkan sebagai Base64 JSON. Jangan mengirimkan file asli berukuran 5MB-10MB dalam wujud Base64 JSON karena bisa diblokir oleh Nginx/Express dan membebani server/memori.
+
+4. **Foto Profil Pegawai Tidak Tampil**
    - Di endpoint `/api/mobile/login`, kini kami telah melampirkan field `profilePicUrl` serta info `departmentId` & `locationId`.
    - **SOLUSI:** Tambahkan `val profilePicUrl: String = ""` di data class `EmployeeData` Anda, simpan profil URL tersebut ke SharedPref/Room saat login, dan gunakan image loader seperti Coil atau Glide (Android) untuk memuat fotonya di Dashboard.
 
-3. **Error HTTP 500 Saat Load Jadwal**
+5. **Error HTTP 500 Saat Load Jadwal**
    - Pastikan Payload RPC menggunakan huruf kecil: `{ "action": "getDocs", "collection": "schedules" }`, jangan huruf kapital.
    - Jika Anda melakukan filter field dari Android, pastikan `employeeId` Anda Valid (lihat poin no 1 tentang UUID).
 
