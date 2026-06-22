@@ -52,24 +52,6 @@ export function orderBy(field: string, dir: string = 'asc') {
 }
 
 export async function getDocs(queryObj: any) {
-  // Use real Firebase for collections that the Android app writes directly to
-  if (queryObj.name === 'work_reports' || queryObj.name === 'attendances') {
-    // For simplicity, we just fetch from the collection without applying Queries since the Admin UI just sorts/filters client-side now or we can implement real query mappings later.
-    // However, the original code had `queries: []` which is fine.
-    const realCol = realFbCollection(realDb, queryObj.name);
-    const snap = await realFbGetDocs(realCol);
-    return {
-      empty: snap.empty,
-      docs: snap.docs.map((d: any) => ({
-        id: d.id,
-        data: () => d.data()
-      })),
-      forEach(callback: (doc: any) => void) {
-        this.docs.forEach(callback);
-      }
-    };
-  }
-
   const reqBody = {
     action: 'getDocs',
     collection: queryObj.name,
