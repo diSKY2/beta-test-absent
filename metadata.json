@@ -1,6 +1,9 @@
 {
   "name": "HRB Bos Control Panel",
   "description": "Admin HRD Dashboard for monitoring attendance, approving leaves/overtime, calculating payroll, and managing geofencing and organizations.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

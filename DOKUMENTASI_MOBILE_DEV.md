@@ -12,9 +12,10 @@ Dokumen ini ditujukan untuk **Mobile Developer (Android/iOS)** yang bertugas men
    - Jika Anda mengirim payload dengan `employeeId` berupa String ID lama (Firebase) atau Null, server akan menolak dan mengembalikan **HTTP 500 (Foreign Key Constraint Violation)**. 
    - **SOLUSI:** Anda wajib *Clear Data / Log Out* aplikasi Android Anda (atau Hapus Instalasi lama), lalu Login ulang melalui endpoint `/api/mobile/login`. Anda akan mendapatkan **UUID PostgreSQL terbaru** yang harus Anda pakai sebagai `employeeId` untuk semua request selanjutnya.
 
-2. **Laporan / Absen Gagal Dikirim (Masalah Jaringan / Endpoint / Timeout)**
-   - Jika menggunakan Device / HP Asli (Android/iOS real device), **JANGAN** menggunakan IP `http://10.0.2.2:3000`. IP tersebut *hanya* berlaku di dalam Emulator Android Studio.
-   - **SOLUSI:** Gunakan URL Publik / Domain production aplikasi web ini (misalnya `https://nama-aplikasi-anda.run.app`) sebagai `BASE_URL` di konfigurasi jaringan Anda.
+2. **Laporan / Absen Gagal Dikirim (Masalah Jaringan) & Jadwal Tidak Sesuai**
+   - **SOLUSI:** Pastikan `BASE_URL` di konfigurasi Kotlin mobile Anda tetap mengarah ke server produksi Railway:
+     **`https://beta-test-absent-production.up.railway.app/api`**
+   - *Penting:* Jika jadwal masih bertuliskan "Kerja" dan bukan "Pagi/Siang/Malam", kemungkinan database di Railway masih kosong (belum disinkronkan dengan data HRD terbaru) atau Anda perlu mengecek tabel `shift_types` dan `schedules` di PostgreSQL Railway Anda. Pastikan web HRD juga terhubung ke koneksi PostgreSQL Railway yang sama.
 
 3. **Gagal Karena Ukuran Foto Terlalu Besar (Payload Too Large / 413)**
    - Endpoint HTTP Express kami memiliki kapabilitas memuat data, namun sebaiknya foto Base64 diperkecil ukurannya untuk menghemat bandwidth.

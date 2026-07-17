@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { db } from '../../lib/firestoreClient';
 import { collection, query, where, getDocs, onSnapshot } from '../../lib/firestoreClient';
 import { PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
@@ -87,14 +87,19 @@ export default function Monitoring() {
     
     const q = query(
       collection(db, 'attendances'),
-      where('date', '>=', fromStr),
-      where('date', '<=', toStr)
+      where('attendanceDate', '>=', fromStr),
+      where('attendanceDate', '<=', toStr)
     );
     
     const unsubscribeAttendances = onSnapshot(q, (snapshot) => {
       const list: any[] = [];
       snapshot.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        let formattedDate = data.date;
+        if (!formattedDate && data.attendanceDate) {
+          formattedDate = new Date(data.attendanceDate).toISOString().split('T')[0];
+        }
+        list.push({ id: doc.id, ...data, date: formattedDate });
       });
       setAttendances(list);
     }, (error) => {
@@ -182,10 +187,17 @@ export default function Monitoring() {
       // 2. Fetch Attendances for date range
       const attSnap = await getDocs(query(
         collection(db, 'attendances'),
-        where('date', '>=', dateFrom),
-        where('date', '<=', dateTo)
+        where('attendanceDate', '>=', dateFrom),
+        where('attendanceDate', '<=', dateTo)
       ));
-      const allAttendances = attSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+      const allAttendances = attSnap.docs.map(d => {
+        const data = d.data() as any;
+        let formattedDate = data.date;
+        if (!formattedDate && data.attendanceDate) {
+          formattedDate = new Date(data.attendanceDate).toISOString().split('T')[0];
+        }
+        return { id: d.id, ...data, date: formattedDate };
+      });
 
       // 3. Prepare dates
       const start = new Date(dateFrom);
@@ -285,30 +297,30 @@ export default function Monitoring() {
   const attendanceRate = totalAll > 0 ? Math.round((stats.hadir / totalAll) * 100) : 0;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 max-w-[1400px] mx-auto text-slate-300 font-sans">
+    <div className="space-y-8 animate-in fade-in duration-500 max-w-[1400px] mx-auto text-slate-700 font-sans">
       
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <p className="text-[10px] font-mono tracking-[0.2em] text-slate-400 uppercase mb-2 flex items-center gap-2">
-            PORTAL ADMINISTRATOR HRD <span className="text-slate-300">•</span> SISTEM SINKRON UTAMA
+          <p className="text-[10px] font-mono tracking-[0.2em] text-slate-600 uppercase mb-2 flex items-center gap-2">
+            PORTAL ADMINISTRATOR HRD <span className="text-slate-700">•</span> SISTEM SINKRON UTAMA
           </p>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Dashboard & Log Hari Ini</h2>
+          <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Dashboard & Log Hari Ini</h2>
         </div>
         
-        <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+        <div className="flex items-center gap-2 text-xs font-mono text-slate-600">
            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" />
            <span className="tracking-wider">Date Frame:</span> 
-           <span className="text-white">{format(new Date(dateFrom), 'MMMM yyyy')} (Live Track)</span>
+           <span className="text-slate-900">{format(new Date(dateFrom), 'MMMM yyyy')} (Live Track)</span>
         </div>
       </div>
 
       <div className="grid lg:grid-cols-12 gap-6">
         
         {/* Pie Chart Card */}
-        <div className="lg:col-span-4 bg-[#0f172a] rounded-xl border border-slate-800/80 p-5 shadow-lg flex flex-col">
-          <h3 className="font-bold text-white text-sm mb-1">Pie Chart Kehadiran Hari Ini</h3>
-          <p className="text-xs text-slate-400 font-mono mb-6">Tanggal Aktif: {dateFrom}</p>
+        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-200/80 p-5 shadow-lg flex flex-col">
+          <h3 className="font-bold text-slate-900 text-sm mb-1">Pie Chart Kehadiran Hari Ini</h3>
+          <p className="text-xs text-slate-600 font-mono mb-6">Tanggal Aktif: {dateFrom}</p>
 
           <div className="flex-1 flex items-center justify-between">
             <div className="w-32 h-32 relative">
@@ -335,60 +347,60 @@ export default function Monitoring() {
                   </RechartsPie>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-xl font-bold text-white leading-none">{totalAll}</span>
-                  <span className="text-[9px] font-bold text-slate-400 tracking-wider">ABSEN</span>
+                  <span className="text-xl font-bold text-slate-900 leading-none">{totalAll}</span>
+                  <span className="text-[9px] font-bold text-slate-600 tracking-wider">ABSEN</span>
                 </div>
             </div>
 
             <div className="flex-1 pl-6 space-y-3">
               <div className="flex items-center gap-2">
-                 <div className="w-2.5 h-2.5 rounded bg-teal-500 shrink-0" />
+                 <div className="w-2.5 h-2.5 rounded bg-blue-600 shrink-0" />
                  <div>
-                   <p className="text-xs font-bold text-white leading-none mb-0.5">Hadir / Telat</p>
-                   <p className="text-[10px] text-slate-400 font-mono">{stats.hadir} orang ({totalAll ? Math.round((stats.hadir/totalAll)*100) : 0}%)</p>
+                   <p className="text-xs font-bold text-slate-900 leading-none mb-0.5">Hadir / Telat</p>
+                   <p className="text-[10px] text-slate-600 font-mono">{stats.hadir} orang ({totalAll ? Math.round((stats.hadir/totalAll)*100) : 0}%)</p>
                  </div>
               </div>
               <div className="flex items-center gap-2">
-                 <div className="w-2.5 h-2.5 rounded bg-amber-900/200 shrink-0" />
+                 <div className="w-2.5 h-2.5 rounded bg-whitember-900/200 shrink-0" />
                  <div>
-                   <p className="text-xs font-bold text-white leading-none mb-0.5">Izin / Sakit</p>
-                   <p className="text-[10px] text-slate-400 font-mono">{stats.izin + stats.sakit} orang ({totalAll ? Math.round(((stats.izin+stats.sakit)/totalAll)*100) : 0}%)</p>
+                   <p className="text-xs font-bold text-slate-900 leading-none mb-0.5">Izin / Sakit</p>
+                   <p className="text-[10px] text-slate-600 font-mono">{stats.izin + stats.sakit} orang ({totalAll ? Math.round(((stats.izin+stats.sakit)/totalAll)*100) : 0}%)</p>
                  </div>
               </div>
               <div className="flex items-center gap-2">
                  <div className="w-2.5 h-2.5 rounded bg-rose-500 shrink-0" />
                  <div>
-                   <p className="text-xs font-bold text-white leading-none mb-0.5">Tidak Hadir (Alpa)</p>
-                   <p className="text-[10px] text-slate-400 font-mono">{stats.alpa} orang ({totalAll ? Math.round((stats.alpa/totalAll)*100) : 0}%)</p>
+                   <p className="text-xs font-bold text-slate-900 leading-none mb-0.5">Tidak Hadir (Alpa)</p>
+                   <p className="text-[10px] text-slate-600 font-mono">{stats.alpa} orang ({totalAll ? Math.round((stats.alpa/totalAll)*100) : 0}%)</p>
                  </div>
               </div>
             </div>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-slate-800/80">
-            <p className="text-xs text-slate-400 font-mono text-center">
+          <div className="mt-6 pt-4 border-t border-slate-200/80">
+            <p className="text-xs text-slate-600 font-mono text-center">
               *Tingkat Kehadiran: {attendanceRate}% dari total {totalAll} regu staf.
             </p>
           </div>
         </div>
 
         {/* Stats Details Card */}
-        <div className="lg:col-span-8 bg-[#0f172a] rounded-xl border border-slate-800/80 p-5 shadow-lg flex flex-col">
-          <h3 className="font-bold text-white text-sm mb-1">Rincian Kehadiran Tim Kerja</h3>
-          <p className="text-xs text-slate-400 mb-6">Grafik pantauan kehadiran di semua pabrik/cabang pada {dateFrom}</p>
+        <div className="lg:col-span-8 bg-white rounded-xl border border-slate-200/80 p-5 shadow-lg flex flex-col">
+          <h3 className="font-bold text-slate-900 text-sm mb-1">Rincian Kehadiran Tim Kerja</h3>
+          <p className="text-xs text-slate-600 mb-6">Grafik pantauan kehadiran di semua pabrik/cabang pada {dateFrom}</p>
 
           <div className="grid grid-cols-4 gap-4 flex-1">
              {/* Hadir Tepat */}
-             <div className="bg-[#f0fdfa]/5 border border-teal-900/50 rounded-xl p-4 flex flex-col justify-between">
-                <span className="text-xs font-bold text-teal-400 tracking-wide uppercase">Hadir Tepat</span>
+             <div className="bg-teal-50 border border-teal-900/50 rounded-xl p-4 flex flex-col justify-between">
+                <span className="text-xs font-bold text-blue-600 tracking-wide uppercase">Hadir Tepat</span>
                 <div>
-                   <p className="text-3xl font-bold text-teal-400 tracking-tight leading-none mb-1">{Math.max(0, stats.hadir - stats.telat)}</p>
+                   <p className="text-3xl font-bold text-blue-600 tracking-tight leading-none mb-1">{Math.max(0, stats.hadir - stats.telat)}</p>
                    <p className="text-[10px] text-teal-600/70">Sesuai jam shift</p>
                 </div>
              </div>
              
              {/* Terlambat */}
-             <div className="bg-[#fff1f2]/5 border border-rose-900/50 rounded-xl p-4 flex flex-col justify-between">
+             <div className="bg-rose-50 border border-rose-900/50 rounded-xl p-4 flex flex-col justify-between">
                 <span className="text-xs font-bold text-rose-400 tracking-wide uppercase">Terlambat</span>
                 <div>
                    <p className="text-3xl font-bold text-rose-400 tracking-tight leading-none mb-1">{stats.telat}</p>
@@ -397,7 +409,7 @@ export default function Monitoring() {
              </div>
 
              {/* Izin Sakit */}
-             <div className="bg-[#fffbeb]/5 border border-amber-900/50 rounded-xl p-4 flex flex-col justify-between">
+             <div className="bg-amber-50 border border-amber-900/50 rounded-xl p-4 flex flex-col justify-between">
                 <span className="text-xs font-bold text-amber-500 tracking-wide uppercase">Izin Sakit</span>
                 <div>
                    <p className="text-3xl font-bold text-amber-500 tracking-tight leading-none mb-1">{stats.izin + stats.sakit}</p>
@@ -406,21 +418,21 @@ export default function Monitoring() {
              </div>
 
              {/* Alpa */}
-             <div className="bg-[#0f172a]/50 border border-slate-700/50 rounded-xl p-4 flex flex-col justify-between">
-                <span className="text-xs font-bold text-slate-300 tracking-wide uppercase">Alfa (Alpa)</span>
+             <div className="bg-white/50 border border-slate-300/50 rounded-xl p-4 flex flex-col justify-between">
+                <span className="text-xs font-bold text-slate-700 tracking-wide uppercase">Alfa (Alpa)</span>
                 <div>
-                   <p className="text-3xl font-bold text-white tracking-tight leading-none mb-1">{stats.alpa}</p>
-                   <p className="text-[10px] text-slate-400">Mangkir tanpa izin</p>
+                   <p className="text-3xl font-bold text-slate-900 tracking-tight leading-none mb-1">{stats.alpa}</p>
+                   <p className="text-[10px] text-slate-600">Mangkir tanpa izin</p>
                 </div>
              </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between bg-[#0f172a]/30 p-3 rounded-lg border border-slate-800">
+          <div className="mt-4 flex items-center justify-between bg-white/30 p-3 rounded-lg border border-slate-200">
              <div className="flex items-center gap-2">
                <Bell className="w-4 h-4 text-amber-500" />
-               <span className="text-xs text-slate-300"><strong className="text-white">Lembur Pending:</strong> 0 pengajuan belum ditinjau.</span>
+               <span className="text-xs text-slate-700"><strong className="text-slate-900">Lembur Pending:</strong> 0 pengajuan belum ditinjau.</span>
              </div>
-             <button className="text-xs font-semibold text-teal-500 hover:text-teal-400 flex items-center gap-1 transition-colors">
+             <button className="text-xs font-semibold text-blue-600 hover:text-blue-600 flex items-center gap-1 transition-colors">
                Proses Sekarang <ArrowRight className="w-3.5 h-3.5" />
              </button>
           </div>
@@ -431,47 +443,47 @@ export default function Monitoring() {
       <div className="pt-4">
         <div className="flex items-center gap-2 mb-1">
           <Layers className="w-5 h-5 text-indigo-400" />
-          <h3 className="font-bold text-white text-base">Pengelompokan Pegawai Per Unit Kerja & Status Live Hari Ini</h3>
+          <h3 className="font-bold text-slate-900 text-base">Pengelompokan Pegawai Per Unit Kerja & Status Live Hari Ini</h3>
         </div>
-        <p className="text-xs text-slate-400 mb-6">Pilah penempatan staf dengan gaya drop down (Kantor Cabang {'>'} Departemen {'>'} Sub Bagian/Regu). Pilih tanggal di atas untuk melihat status harian.</p>
+        <p className="text-xs text-slate-600 mb-6">Pilah penempatan staf dengan gaya drop down (Kantor Cabang {'>'} Departemen {'>'} Sub Bagian/Regu). Pilih tanggal di atas untuk melihat status harian.</p>
 
         {/* Filters Header (Moved from Table) */}
-        <div className="p-4 border border-slate-800 rounded-xl mb-6 flex flex-wrap gap-4 items-center justify-between bg-[#111827]/80 shadow-lg">
+        <div className="p-4 border border-slate-200 rounded-xl mb-6 flex flex-wrap gap-4 items-center justify-between bg-slate-50/80 shadow-lg">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2" />
               <input 
                 type="text" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari nama, NIK..." 
-                className="bg-[#0f172a] border border-slate-700 text-sm text-white rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 w-64"
+                className="bg-white border border-slate-300 text-sm text-slate-900 rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:ring-1 focus:ring-teal-500 w-64"
               />
             </div>
             
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-400">Dari:</span>
+              <span className="text-slate-600">Dari:</span>
               <input 
                 type="date" 
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="bg-[#0f172a] border border-slate-700 text-white rounded px-2 py-1.5 focus:outline-none focus:border-teal-500"
+                className="bg-white border border-slate-300 text-slate-900 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
-              <span className="text-slate-400 ml-2">Sampai (Export):</span>
+              <span className="text-slate-600 ml-2">Sampai (Export):</span>
               <input 
                 type="date" 
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="bg-[#0f172a] border border-slate-700 text-white rounded px-2 py-1.5 focus:outline-none focus:border-teal-500"
+                className="bg-white border border-slate-300 text-slate-900 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
             
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-400">Cabang/Pabrik:</span>
+              <span className="text-slate-600">Cabang/Pabrik:</span>
               <select 
                 value={selectedLocationId}
                 onChange={(e) => setSelectedLocationId(e.target.value)}
-                className="bg-[#0f172a] border border-slate-700 text-white rounded px-2 py-1.5 focus:outline-none focus:border-teal-500"
+                className="bg-white border border-slate-300 text-slate-900 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               >
                 <option value="all">🌍 Semua Lokasi Kerja</option>
                 {locations.map(loc => (
@@ -482,7 +494,7 @@ export default function Monitoring() {
           </div>
           <button 
             onClick={handleExport}
-            className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-500 transition-colors shadow-lg"
+            className="flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors shadow-lg"
           >
             <Download className="w-4 h-4" />
             Export to Excel (CSV)
@@ -509,30 +521,30 @@ export default function Monitoring() {
             const deptsInLoc = departments.filter(d => locEmployees.some(e => e.departmentId === d.id));
 
             return (
-              <div key={loc.id} className="bg-[#0f172a] rounded-xl border border-slate-800 shadow-md overflow-hidden transition-all">
-                <div onClick={(e) => toggleLoc(loc.id, e)} className="p-4 flex items-center justify-between cursor-pointer hover:bg-[#151f32] select-none bg-[#111827]">
+              <div key={loc.id} className="bg-white rounded-xl border border-slate-200 shadow-md overflow-hidden transition-all">
+                <div onClick={(e) => toggleLoc(loc.id, e)} className="p-4 flex items-center justify-between cursor-pointer hover:bg-white select-none bg-slate-50">
                   <div className="flex items-center gap-4">
                      <div className="w-10 h-10 rounded-full bg-indigo-900/10 border border-indigo-500/20 flex items-center justify-center">
                        <Building className="w-5 h-5 text-indigo-400" />
                      </div>
                      <div>
                        <div className="flex items-center gap-2 mb-1">
-                         {isLocExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                         <h4 className="font-bold text-white text-sm uppercase">{loc.name}</h4>
-                         <span className="px-1.5 py-0.5 rounded bg-[#1e293b] text-[10px] text-slate-400 font-mono">Radius: {loc.radius || 100}m</span>
+                         {isLocExpanded ? <ChevronDown className="w-4 h-4 text-slate-600" /> : <ChevronRight className="w-4 h-4 text-slate-600" />}
+                         <h4 className="font-bold text-slate-900 text-sm uppercase">{loc.name}</h4>
+                         <span className="px-1.5 py-0.5 rounded bg-slate-50 text-[10px] text-slate-600 font-mono">Radius: {loc.radius || 100}m</span>
                        </div>
-                       <p className="text-xs text-slate-400 font-mono">GPS: {loc.latitude || 0}, {loc.longitude || 0}</p>
+                       <p className="text-xs text-slate-600 font-mono">GPS: {loc.latitude || 0}, {loc.longitude || 0}</p>
                      </div>
                   </div>
                   <div className="flex items-center gap-3">
-                     <span className="px-2 py-1 rounded bg-teal-500/10 border border-teal-500/25 text-xs font-semibold text-teal-400">{locHadir} Hadir</span>
-                     <span className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/25 text-xs font-semibold text-amber-500">{locIzinSakit} Izin</span>
-                     <span className="px-2 py-1 rounded bg-[#1e293b] border border-slate-700 text-xs font-semibold text-slate-400">{locBelumAbsen} Belum Absen</span>
+                     <span className="px-2 py-1 rounded bg-blue-50 border border-teal-500/25 text-xs font-semibold text-blue-600">{locHadir} Hadir</span>
+                     <span className="px-2 py-1 rounded bg-whitember-500/10 border border-amber-500/25 text-xs font-semibold text-amber-500">{locIzinSakit} Izin</span>
+                     <span className="px-2 py-1 rounded bg-slate-50 border border-slate-300 text-xs font-semibold text-slate-600">{locBelumAbsen} Belum Absen</span>
                   </div>
                 </div>
 
                 {isLocExpanded && (
-                  <div className="border-t border-slate-800 p-4 space-y-4 bg-[#0B101A]">
+                  <div className="border-t border-slate-200 p-4 space-y-4 bg-slate-50">
                     {deptsInLoc.length === 0 ? (
                        <p className="text-slate-500 text-xs text-center py-4">Tidak ada departemen / karyawan di lokasi ini.</p>
                     ) : deptsInLoc.map(dept => {
@@ -543,21 +555,21 @@ export default function Monitoring() {
                       const subDeptsInDept = subDepartments.filter(sd => deptEmployees.some(e => e.subDepartmentId === sd.id));
 
                       return (
-                        <div key={dept.id} className="bg-[#0f172a]/50 rounded-lg border border-slate-700/50 overflow-hidden">
-                          <div onClick={(e) => toggleDept(dept.id, e)} className="p-3 flex items-center justify-between cursor-pointer hover:bg-[#151f32]/50 select-none">
+                        <div key={dept.id} className="bg-white/50 rounded-lg border border-slate-300/50 overflow-hidden">
+                          <div onClick={(e) => toggleDept(dept.id, e)} className="p-3 flex items-center justify-between cursor-pointer hover:bg-white/50 select-none">
                             <div className="flex items-center gap-3 pl-2">
                                <Layers className="w-4 h-4 text-blue-400" />
                                <div className="flex items-center gap-2">
-                                 {isDeptExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                                 <h5 className="font-bold text-white text-sm">{dept.name}</h5>
-                                 <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">Departemen</span>
+                                 {isDeptExpanded ? <ChevronDown className="w-4 h-4 text-slate-600" /> : <ChevronRight className="w-4 h-4 text-slate-600" />}
+                                 <h5 className="font-bold text-slate-900 text-sm">{dept.name}</h5>
+                                 <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Departemen</span>
                                </div>
                             </div>
-                            <span className="text-xs font-mono text-slate-400 pr-2">{deptEmployees.length} Pegawai</span>
+                            <span className="text-xs font-mono text-slate-600 pr-2">{deptEmployees.length} Pegawai</span>
                           </div>
 
                           {isDeptExpanded && (
-                            <div className="border-t border-slate-700/50 p-3 space-y-3 bg-[#0a0f18]">
+                            <div className="border-t border-slate-300/50 p-3 space-y-3 bg-slate-100">
                               {subDeptsInDept.map(subDept => {
                                 const isSubDeptExpanded = expandedSubDepts[subDept.id] !== false;
                                 const subDeptEmployees = deptEmployees.filter(e => e.subDepartmentId === subDept.id);
@@ -570,23 +582,23 @@ export default function Monitoring() {
                                 });
 
                                 return (
-                                  <div key={subDept.id} className="bg-[#151f32]/40 rounded border border-slate-700/30 overflow-hidden">
-                                    <div onClick={(e) => toggleSubDept(subDept.id, e)} className="p-3 flex items-center justify-between cursor-pointer hover:bg-[#1a263c]/50 select-none">
+                                  <div key={subDept.id} className="bg-white/40 rounded border border-slate-300/30 overflow-hidden">
+                                    <div onClick={(e) => toggleSubDept(subDept.id, e)} className="p-3 flex items-center justify-between cursor-pointer hover:bg-slate-200 select-none">
                                       <div className="flex items-center gap-3 pl-4">
                                          <Users className="w-4 h-4 text-emerald-400" />
                                          <div className="flex items-center gap-2">
-                                           {isSubDeptExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                                           <h6 className="font-semibold text-slate-200 text-xs">{subDept.name}</h6>
-                                           <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">Sub Bagian / Regu</span>
+                                           {isSubDeptExpanded ? <ChevronDown className="w-4 h-4 text-slate-600" /> : <ChevronRight className="w-4 h-4 text-slate-600" />}
+                                           <h6 className="font-semibold text-slate-800 text-xs">{subDept.name}</h6>
+                                           <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Sub Bagian / Regu</span>
                                          </div>
                                       </div>
-                                      <span className="text-xs font-mono text-slate-400 pr-2">{subDeptEmployees.length} Pegawai</span>
+                                      <span className="text-xs font-mono text-slate-600 pr-2">{subDeptEmployees.length} Pegawai</span>
                                     </div>
 
                                     {isSubDeptExpanded && (
-                                      <div className="border-t border-slate-700/30 overflow-x-auto bg-[#0f172a]">
+                                      <div className="border-t border-slate-300/30 overflow-x-auto bg-white">
                                         <table className="w-full text-left text-xs whitespace-nowrap table-fixed">
-                                          <thead className="bg-[#111827] border-b border-slate-800 uppercase font-mono tracking-wider text-slate-400">
+                                          <thead className="bg-slate-50 border-b border-slate-200 uppercase font-mono tracking-wider text-slate-600">
                                             <tr>
                                               <th className="px-4 py-3 font-semibold w-64">Karyawan</th>
                                               <th className="px-4 py-3 font-semibold w-24">Tanggal</th>
@@ -599,7 +611,7 @@ export default function Monitoring() {
                                               <th className="px-4 py-3 font-semibold w-48">Lokasi GPS & Radius</th>
                                             </tr>
                                           </thead>
-                                          <tbody className="divide-y divide-slate-800/80">
+                                          <tbody className="divide-y divide-slate-200/80">
                                             {filteredSubDeptEmployees.length === 0 ? (
                                               <tr>
                                                 <td colSpan={9} className="px-4 py-6 text-center text-slate-500 italic">
@@ -614,89 +626,89 @@ export default function Monitoring() {
                                                };
 
                                                return (
-                                                 <tr key={emp.id} className="hover:bg-[#151f32]/50 transition-colors">
+                                                 <tr key={emp.id} className="hover:bg-white/50 transition-colors">
                                                    <td className="px-4 py-3">
                                                      <div className="flex items-center gap-3">
                                                        {emp?.profilePicUrl ? (
-                                                         <img src={emp.profilePicUrl} alt={emp.name} className="w-8 h-8 rounded-full object-cover border border-slate-700" referrerPolicy="no-referrer" />
+                                                         <img src={emp.profilePicUrl} alt={emp.name} className="w-8 h-8 rounded-full object-cover border border-slate-300" referrerPolicy="no-referrer" />
                                                        ) : (
-                                                         <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500 font-bold text-[10px]">
+                                                         <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-500 font-bold text-[10px]">
                                                            {emp?.name ? emp.name.charAt(0).toUpperCase() : '?'}
                                                          </div>
                                                        )}
                                                        <div className="truncate w-40">
-                                                         <div className="font-bold text-white text-xs truncate">{emp.name}</div>
-                                                         <div className="text-[10px] text-slate-400 font-mono truncate">NIK: {emp.nik || '-'}</div>
+                                                         <div className="font-bold text-slate-900 text-xs truncate">{emp.name}</div>
+                                                         <div className="text-[10px] text-slate-600 font-mono truncate">NIK: {emp.nik || '-'}</div>
                                                        </div>
                                                      </div>
                                                    </td>
-                                                   <td className="px-4 py-3 font-mono text-slate-400 text-[10px]">{a.date}</td>
-                                                   <td className="px-4 py-3 text-slate-400 text-[10px] truncate">{a.shiftName || (a.shiftStart ? `${a.shiftStart} - ${a.shiftEnd}` : '-')}</td>
-                                                   <td className="px-4 py-3 font-mono text-teal-400 text-[10px]">
+                                                   <td className="px-4 py-3 font-mono text-slate-600 text-[10px]">{a.date}</td>
+                                                   <td className="px-4 py-3 text-slate-600 text-[10px] truncate">{a.shiftName || (a.shiftStart ? `${a.shiftStart} - ${a.shiftEnd}` : '-')}</td>
+                                                   <td className="px-4 py-3 font-mono text-blue-600 text-[10px]">
                                                       <div className="flex items-center gap-2">
                                                         <span>{a.timeIn || '--:--'}</span>
                                                         {(a.photoUrlIn || a.photoUrl) ? (
                                                           <a href={a.photoUrlIn || a.photoUrl} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
-                                                            <img src={a.photoUrlIn || a.photoUrl} alt="Selfie In" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-700 hover:border-teal-500" />
+                                                            <img src={a.photoUrlIn || a.photoUrl} alt="Selfie In" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-300 hover:border-teal-500" />
                                                           </a>
                                                         ) : (
-                                                          <span className="text-[9px] text-slate-600 bg-slate-800 px-1 py-0.5 rounded">No Photo</span>
+                                                          <span className="text-[9px] text-slate-600 bg-slate-100 px-1 py-0.5 rounded">No Photo</span>
                                                         )}
                                                       </div>
                                                    </td>
-                                                   <td className="px-4 py-3 font-mono text-slate-400 text-[10px]">
+                                                   <td className="px-4 py-3 font-mono text-slate-600 text-[10px]">
                                                       <div className="flex items-center gap-2">
                                                         <span>{a.timeOut || '--:--'}</span>
                                                         {a.photoUrlOut ? (
                                                           <a href={a.photoUrlOut} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
-                                                            <img src={a.photoUrlOut} alt="Selfie Out" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-700 hover:border-teal-500" />
+                                                            <img src={a.photoUrlOut} alt="Selfie Out" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-300 hover:border-teal-500" />
                                                           </a>
                                                         ) : (
-                                                          <span className="text-[9px] text-slate-600 bg-slate-800 px-1 py-0.5 rounded">No Photo</span>
+                                                          <span className="text-[9px] text-slate-600 bg-slate-100 px-1 py-0.5 rounded">No Photo</span>
                                                         )}
                                                       </div>
                                                    </td>
                                                    <td className="px-4 py-3">
                                                      <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase
-                                                       ${a.status === 'Hadir' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' :
+                                                       ${a.status === 'Hadir' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
                                                          a.status === 'Izin' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                                                         a.status === 'Sakit' ? 'bg-amber-900/200/10 text-amber-400 border border-amber-500/20' :
-                                                         a.status === 'Belum Absen' ? 'bg-slate-800 text-slate-400 border border-slate-700' :
+                                                         a.status === 'Sakit' ? 'bg-whitember-900/200/10 text-amber-400 border border-amber-500/20' :
+                                                         a.status === 'Belum Absen' ? 'bg-slate-100 text-slate-600 border border-slate-300' :
                                                          'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                                                        }`}>
                                                        {a.status}
                                                      </span>
                                                    </td>
-                                                   <td className="px-4 py-3 text-slate-400 font-mono text-[10px]">
+                                                   <td className="px-4 py-3 text-slate-600 font-mono text-[10px]">
                                                       <div className="flex items-center gap-2">
                                                         <span>{a.overtimeIn || '--:--'}</span>
                                                         {a.photoUrlOvertimeIn ? (
                                                           <a href={a.photoUrlOvertimeIn} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
-                                                            <img src={a.photoUrlOvertimeIn} alt="Selfie OT In" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-700 hover:border-teal-500" />
+                                                            <img src={a.photoUrlOvertimeIn} alt="Selfie OT In" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-300 hover:border-teal-500" />
                                                           </a>
                                                         ) : (
-                                                          <span className="text-[9px] text-slate-600 bg-slate-800 px-1 py-0.5 rounded">No Photo</span>
+                                                          <span className="text-[9px] text-slate-600 bg-slate-100 px-1 py-0.5 rounded">No Photo</span>
                                                         )}
                                                       </div>
                                                    </td>
-                                                   <td className="px-4 py-3 text-slate-400 font-mono text-[10px]">
+                                                   <td className="px-4 py-3 text-slate-600 font-mono text-[10px]">
                                                       <div className="flex items-center gap-2">
                                                         <span>{a.overtimeOut || '--:--'}</span>
                                                         {a.photoUrlOvertimeOut ? (
                                                           <a href={a.photoUrlOvertimeOut} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
-                                                            <img src={a.photoUrlOvertimeOut} alt="Selfie OT Out" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-700 hover:border-teal-500" />
+                                                            <img src={a.photoUrlOvertimeOut} alt="Selfie OT Out" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-300 hover:border-teal-500" />
                                                           </a>
                                                         ) : (
-                                                          <span className="text-[9px] text-slate-600 bg-slate-800 px-1 py-0.5 rounded">No Photo</span>
+                                                          <span className="text-[9px] text-slate-600 bg-slate-100 px-1 py-0.5 rounded">No Photo</span>
                                                         )}
                                                       </div>
                                                    </td>
-                                                   <td className="px-4 py-3 text-slate-400 font-mono text-[9px] truncate">
+                                                   <td className="px-4 py-3 text-slate-600 font-mono text-[9px] truncate">
                                                      {a.latitude && a.longitude ? (
                                                        <div className="truncate w-32">
                                                          <div>{Number(a.latitude).toFixed(5)}, {Number(a.longitude).toFixed(5)}</div>
                                                          {a.distanceMeter !== undefined && (
-                                                           <div className={a.distanceMeter <= (a.allowedRadius || 100) ? 'text-teal-400' : 'text-rose-400'}>
+                                                           <div className={a.distanceMeter <= (a.allowedRadius || 100) ? 'text-blue-600' : 'text-rose-400'}>
                                                              Jarak: {Math.round(a.distanceMeter)}m ({a.distanceMeter <= (a.allowedRadius || 100) ? 'Radius ✓' : 'Luar Radius ✗'})
                                                            </div>
                                                          )}
@@ -726,7 +738,7 @@ export default function Monitoring() {
             );
           })}
           {locations.length === 0 && (
-            <div className="px-4 py-8 text-center text-sm text-slate-600 border border-dashed border-slate-800 rounded-xl bg-[#0a111a]">
+            <div className="px-4 py-8 text-center text-sm text-slate-600 border border-dashed border-slate-200 rounded-xl bg-slate-50">
                Belum ada lokasi geofencing yang dibuat. Silakan tambahkan lokasi di menu Geofencing.
             </div>
           )}

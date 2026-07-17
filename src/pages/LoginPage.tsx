@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signInAnonymously } from '../lib/firestoreClient';
-import { auth, db } from '../lib/firestoreClient';
 import { useNavigate, Link } from 'react-router';
-import { doc, setDoc, collection, query, where, getDocs } from '../lib/firestoreClient';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Lock, Mail, KeyRound, ShieldAlert } from 'lucide-react';
+import { motion } from 'motion/react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -11,20 +9,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-
-  const handleGoogleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    setLoading(true);
-    setError('');
-    try {
-      await signInWithPopup(auth, provider);
-      navigate('/admin');
-    } catch (err: any) {
-      setError(err.message || 'Gagal login dengan Google');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,13 +40,13 @@ export default function LoginPage() {
               window.location.href = '/admin'; // Force reload to apply auth state
               return;
            } else {
-             setError('Gagal membuat akun default admin.');
-             setLoading(false);
-             return;
+              setError('Gagal menginisiasi akun default administrator.');
+              setLoading(false);
+              return;
            }
         }
         
-        setError('Login Gagal: ' + data.error);
+        setError('Akses ditolak: ' + data.error);
         setLoading(false);
         return;
       }
@@ -71,96 +55,135 @@ export default function LoginPage() {
       window.location.href = '/admin'; // Force reload
       
     } catch (err: any) {
-      setError('Network ERROR: Pastikan server backend Anda berjalan (' + err.message + ')');
+      setError('Gangguan Jaringan: Pastikan server backend Anda berjalan (' + err.message + ')');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex">
-      {/* Left Decoration Panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-slate-900 relative overflow-hidden flex-col justify-center items-center">
-        <Link to="/" className="absolute top-8 left-8 z-20 flex items-center gap-2 text-white/70 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full backdrop-blur-sm border border-white/10 text-sm font-medium">
-          <ArrowLeft className="w-4 h-4" />
-          Kembali ke Beranda
-        </Link>
-        {/* Abstract Glowing Orbs */}
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/30 rounded-full blur-[100px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-500/20 rounded-full blur-[100px]" />
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex font-sans overflow-hidden relative antialiased">
+      
+      {/* Decorative ambient background */}
+      <div className="absolute top-0 left-0 w-full h-1/2 bg-blue-700 pointer-events-none -z-10" />
+
+      {/* Left Column: Corporate Brand Showcase */}
+      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-16 text-white">
         
-        <div className="relative z-10 p-16 max-w-lg">
-          <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/10 mb-8">
-            <div className="w-6 h-6 border-4 border-blue-500 rounded-full border-t-transparent animate-spin" style={{ animationDuration: '3s' }} />
+        {/* Return Button */}
+        <Link 
+          to="/" 
+          className="self-start flex items-center gap-2 text-blue-100 hover:text-white transition-colors bg-blue-800/50 border border-blue-600 px-4 py-2 rounded-xl text-xs font-bold backdrop-blur-sm"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Kembali ke Landing Page</span>
+        </Link>
+        
+        {/* Core Slogan Info */}
+        <div className="max-w-md space-y-6 mt-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 border border-white/20 rounded-full text-blue-100 text-[10px] font-bold uppercase tracking-wider font-mono backdrop-blur-sm">
+            SECURE ACCESS PORTAL
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 leading-tight font-sans tracking-tight">
-            BOS Panel<br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-              Future of HR.
-            </span>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight tracking-tight">
+            HQ COMMAND CONTROL
           </h1>
-          <p className="text-lg text-slate-400 leading-relaxed font-light">
-            Sistem terintegrasi untuk rostering cerdas, pantau absensi geofencing, hingga kalkulasi payroll otomatis. Semua dalam satu dasbor minimalis.
+          <p className="text-sm text-blue-100 leading-relaxed text-justify">
+            Gerbang masuk terenkripsi khusus untuk tim HRD dan Pengawas Lapangan PT. Garuda Trisula Perkasa untuk mengatur roster, validasi klaim, koordinasi geofence, dan payroll.
           </p>
+        </div>
+
+        {/* Dynamic Trust Footnote */}
+        <div className="flex items-center gap-2.5 text-xs font-mono text-blue-200 mt-20">
+          <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+          <span>STANDAR OPERASIONAL DIJAMIN SSL 256-BIT</span>
         </div>
       </div>
 
-      {/* Right Login Panel */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white relative">
-        <div className="w-full max-w-md space-y-8">
+      {/* Right Column: Secure Form Panel */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-8 lg:p-16 relative">
+        
+        {/* Top return for mobile/tablet screens */}
+        <Link 
+          to="/" 
+          className="lg:hidden absolute top-8 left-8 flex items-center gap-1.5 text-blue-100 hover:text-white transition-colors bg-blue-800/50 border border-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold backdrop-blur-sm"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Kembali</span>
+        </Link>
+
+        <div className="w-full max-w-md space-y-8 bg-white border border-slate-200 p-8 sm:p-10 rounded-3xl shadow-xl z-10 mt-16 lg:mt-0">
           
-          <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-slate-900 tracking-tight font-sans">Selamat Datang 👋</h2>
-            <p className="text-slate-500 mt-2 font-medium">Masuk untuk mengelola operasional HRD Anda</p>
+          <div className="text-center sm:text-left space-y-2">
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Otentikasi Admin</h2>
+            <p className="text-xs text-slate-500 font-medium">Gunakan kredensial resmi untuk mengakses command center.</p>
           </div>
           
           {error && (
-            <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-sm font-medium">
-              {error}
-            </div>
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-2xl text-xs font-semibold flex items-center gap-3"
+            >
+              <ShieldAlert className="w-5 h-5 shrink-0 text-red-500" />
+              <span>{error}</span>
+            </motion.div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold text-slate-700">Email Admin</label>
-              <input 
-                required 
-                type="email" 
-                className="w-full rounded-xl border-slate-200 bg-slate-50/50 shadow-sm focus:bg-white focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 px-4 py-3.5 transition-all outline-none"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email Admin HRD"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center">
-                 <label className="block text-sm font-semibold text-slate-700">Password</label>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider font-mono">Email Operator</label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <input 
+                  required 
+                  type="email" 
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 pl-11 pr-4 py-3.5 transition-all outline-none"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@perusahaan.com"
+                />
               </div>
-              <input 
-                required 
-                type="password" 
-                className="w-full rounded-xl border-slate-200 bg-slate-50/50 shadow-sm focus:bg-white focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 px-4 py-3.5 transition-all outline-none"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider font-mono">Kunci Sandi</label>
+              <div className="relative">
+                <KeyRound className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <input 
+                  required 
+                  type="password" 
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 pl-11 pr-4 py-3.5 transition-all outline-none"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
             </div>
             
             <button
               type="submit"
               disabled={loading}
-              className="w-full relative flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-3.5 rounded-xl transition-all font-semibold shadow-xl shadow-slate-900/10 disabled:opacity-70 disabled:cursor-not-allowed group overflow-hidden"
+              className="w-full relative flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-800 active:scale-95 text-white px-4 py-3.5 rounded-xl transition-all font-bold text-sm shadow-md disabled:opacity-70 disabled:cursor-not-allowed group overflow-hidden cursor-pointer"
             >
-              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-              {loading ? 'Memproses...' : 'Masuk dengan Email'}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin" />
+                  Mengotentikasi Sesi...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  Masuk ke Command Center
+                </span>
+              )}
             </button>
           </form>
 
-          <div className="mt-8 p-4 bg-blue-50/50 border border-blue-100 rounded-xl text-center">
-            <p className="text-xs text-blue-800/70 font-medium">
-              Akses Admin Default:<br/>
-              Email: <b>admin@perusahaan.com</b><br/>
-              Katasandi: <b>admin123</b>
+          {/* Quick Access Aid */}
+          <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl text-center space-y-1">
+            <p className="text-[10px] text-blue-700 font-mono font-bold tracking-wider">DEMO_ADMIN_ENVIRONMENT</p>
+            <p className="text-[10px] text-slate-600 font-mono">
+              Email: <span className="text-slate-900 font-bold">admin@perusahaan.com</span> • Sandi: <span className="text-slate-900 font-bold">admin123</span>
             </p>
           </div>
 

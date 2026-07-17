@@ -16,6 +16,7 @@ export default function Approvals() {
   const [employeesMap, setEmployeesMap] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [searchHistory, setSearchHistory] = useState('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
     const q1 = query(collection(db, 'leave_requests'), where('status', '==', 'Pending'));
@@ -141,19 +142,19 @@ export default function Approvals() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Sistem Approval</h2>
-          <p className="text-slate-400">Setujui permintaan izin, sakit, lembur terintegrasi data kehadiran.</p>
+          <h2 className="text-2xl font-bold text-slate-900">Sistem Approval</h2>
+          <p className="text-slate-600">Setujui permintaan izin, sakit, lembur terintegrasi data kehadiran.</p>
         </div>
         <div className="flex gap-2">
            <button 
              onClick={() => setActiveTab('pending')}
-             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${activeTab==='pending' ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${activeTab==='pending' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
            >
              Pending ({leaves.length + overtimes.length})
            </button>
            <button 
              onClick={() => setActiveTab('history')}
-             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${activeTab==='history' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${activeTab==='history' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
            >
              Riwayat Persetujuan
            </button>
@@ -162,34 +163,34 @@ export default function Approvals() {
 
       {activeTab === 'pending' && (
       <>
-        <div className="bg-[#0f172a] rounded-2xl shadow-lg border border-slate-800 overflow-hidden">
-          <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-white">Permintaan Izin & Sakit</h3>
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+          <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-900">Permintaan Izin & Sakit</h3>
             <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">{leaves.length} Pending</span>
           </div>
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-slate-200">
             {leaves.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 italic">Tidak ada permintaan izin/sakit.</div>
+              <div className="p-8 text-center text-slate-600 italic">Tidak ada permintaan izin/sakit.</div>
             ) : (
               leaves.map(req => (
-                 <div key={req.id} className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 hover:bg-[#111827] transition-colors">
+                 <div key={req.id} className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 hover:bg-slate-50 transition-colors">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                         <span className="font-bold text-white">{employeesMap[req.employeeId] || req.employeeId}</span>
+                         <span className="font-bold text-slate-900">{employeesMap[req.employeeId] || req.employeeId}</span>
                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${req.type === 'Sakit' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>
                            {req.type}
                          </span>
-                         <span className="text-sm text-slate-400">• {req.date}</span>
+                         <span className="text-sm text-slate-600">• {req.date}</span>
                       </div>
-                      <p className="text-sm text-slate-300">{req.reason}</p>
+                      <p className="text-sm text-slate-700">{req.reason}</p>
                       {req.photoUrl && (
-                        <a href={req.photoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-2">
+                        <button onClick={() => setSelectedImage(req.photoUrl)} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mt-2 cursor-pointer">
                           <ImageIcon className="w-4 h-4" /> Lihat Bukti Foto
-                        </a>
+                        </button>
                       )}
                     </div>
                     <div className="flex gap-3">
-                      <button onClick={() => handleLeaveAction(req.id, 'Approved')} className="bg-green-100 text-green-400 hover:bg-green-200 px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors">
+                      <button onClick={() => handleLeaveAction(req.id, 'Approved')} className="bg-green-100 text-green-700 hover:bg-green-200 px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors">
                         <Check className="w-4 h-4" /> Setujui
                       </button>
                       <button onClick={() => handleLeaveAction(req.id, 'Rejected')} className="bg-red-100 text-red-700 hover:bg-red-200 px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors">
@@ -202,29 +203,29 @@ export default function Approvals() {
           </div>
         </div>
 
-        <div className="bg-[#0f172a] rounded-2xl shadow-lg border border-slate-800 overflow-hidden">
-          <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-white">Permintaan Lembur</h3>
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+          <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-900">Permintaan Lembur</h3>
             <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold">{overtimes.length} Pending</span>
           </div>
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-slate-200">
             {overtimes.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 italic">Tidak ada permintaan lembur.</div>
+              <div className="p-8 text-center text-slate-600 italic">Tidak ada permintaan lembur.</div>
             ) : (
               overtimes.map(req => (
-                 <div key={req.id} className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 hover:bg-[#111827] transition-colors">
+                 <div key={req.id} className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 hover:bg-slate-50 transition-colors">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                         <span className="font-bold text-white">{employeesMap[req.employeeId] || req.employeeId}</span>
+                         <span className="font-bold text-slate-900">{employeesMap[req.employeeId] || req.employeeId}</span>
                          <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full font-medium">
                            {req.hours} Jam
                          </span>
-                         <span className="text-sm text-slate-400">• {req.date}</span>
+                         <span className="text-sm text-slate-600">• {req.date}</span>
                       </div>
-                      <p className="text-sm text-slate-300">{req.reason}</p>
+                      <p className="text-sm text-slate-700">{req.reason}</p>
                     </div>
                     <div className="flex gap-3">
-                      <button onClick={() => handleOvertimeAction(req.id, 'Approved')} className="bg-green-100 text-green-400 hover:bg-green-200 px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors">
+                      <button onClick={() => handleOvertimeAction(req.id, 'Approved')} className="bg-green-100 text-green-700 hover:bg-green-200 px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors">
                         <Check className="w-4 h-4" /> Setujui
                       </button>
                       <button onClick={() => handleOvertimeAction(req.id, 'Rejected')} className="bg-red-100 text-red-700 hover:bg-red-200 px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors">
@@ -240,78 +241,101 @@ export default function Approvals() {
       )}
 
       {activeTab === 'history' && (
-      <div className="bg-[#0f172a] rounded-2xl shadow-lg border border-slate-800 overflow-hidden animate-in fade-in duration-300 flex flex-col">
-          <div className="p-6 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden animate-in fade-in duration-300 flex flex-col">
+          <div className="p-6 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
              <div>
-               <h3 className="text-lg font-semibold text-white">Log Persetujuan</h3>
-               <p className="text-xs text-slate-400">Riwayat pengajuan izin dan lembur yang telah diproses.</p>
+               <h3 className="text-lg font-semibold text-slate-900">Log Persetujuan</h3>
+               <p className="text-xs text-slate-600">Riwayat pengajuan izin dan lembur yang telah diproses.</p>
              </div>
              <div className="flex items-center gap-3">
                 <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input 
                     type="text" 
                     value={searchHistory}
                     onChange={(e) => setSearchHistory(e.target.value)}
                     placeholder="Cari nama pegawai..." 
-                    className="bg-[#151f32] border border-slate-700 text-sm text-white rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-indigo-500 w-48 sm:w-64"
+                    className="bg-white border border-slate-300 text-sm text-slate-900 rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-indigo-500 w-48 sm:w-64"
                   />
                 </div>
                 <button 
                   onClick={exportHistory}
-                  className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-500 transition-colors shadow-lg"
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-500 transition-colors shadow-lg"
                 >
                   <Download className="w-4 h-4" /> Export CSV
                 </button>
              </div>
           </div>
           
-          <div className="divide-y divide-slate-800">
-             <div className="p-4 bg-[#111827] flex items-center gap-2">
-                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Riwayat Izin & Sakit ({filteredHistoryLeaves.length})</span>
+          <div className="divide-y divide-slate-200">
+             <div className="p-4 bg-slate-50 flex items-center gap-2">
+                 <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Riwayat Izin & Sakit ({filteredHistoryLeaves.length})</span>
              </div>
              {filteredHistoryLeaves.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 italic text-sm">Tidak ada riwayat.</div>
+                <div className="p-8 text-center text-slate-600 italic text-sm">Tidak ada riwayat.</div>
              ) : (
                 filteredHistoryLeaves.map(req => (
-                   <div key={req.id} className="p-4 flex items-center justify-between hover:bg-[#111827]/50 transition-colors">
+                   <div key={req.id} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                       <div>
                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-white text-sm">{employeesMap[req.employeeId] || req.employeeId}</span>
-                            <span className="text-slate-400 text-xs">• {req.date}</span>
+                            <span className="font-bold text-slate-900 text-sm">{employeesMap[req.employeeId] || req.employeeId}</span>
+                            <span className="text-slate-600 text-xs">• {req.date}</span>
                          </div>
-                         <p className="text-slate-400 text-xs line-clamp-1">{req.type}: {req.reason}</p>
+                         <p className="text-slate-600 text-xs line-clamp-1">{req.type}: {req.reason}</p>
+                         {req.photoUrl && (
+                           <button onClick={() => setSelectedImage(req.photoUrl)} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1 cursor-pointer">
+                             <ImageIcon className="w-3 h-3" /> Lihat Bukti Foto
+                           </button>
+                         )}
                       </div>
                       <div>
-                         <span className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded font-bold ${req.status === 'Approved' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>{req.status}</span>
+                         <span className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded font-bold ${req.status === 'Approved' ? 'bg-green-500/10 text-green-700 border border-green-500/20' : 'bg-red-500/10 text-red-700 border border-red-500/20'}`}>{req.status}</span>
                       </div>
                    </div>
                 ))
              )}
 
-             <div className="p-4 bg-[#111827] flex items-center gap-2 border-t mt-4">
-                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Riwayat Lembur ({filteredHistoryOvertimes.length})</span>
+             <div className="p-4 bg-slate-50 flex items-center gap-2 border-t mt-4">
+                 <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Riwayat Lembur ({filteredHistoryOvertimes.length})</span>
              </div>
              {filteredHistoryOvertimes.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 italic text-sm">Tidak ada riwayat.</div>
+                <div className="p-8 text-center text-slate-600 italic text-sm">Tidak ada riwayat.</div>
              ) : (
                 filteredHistoryOvertimes.map(req => (
-                   <div key={req.id} className="p-4 flex items-center justify-between hover:bg-[#111827]/50 transition-colors">
+                   <div key={req.id} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                       <div>
                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-white text-sm">{employeesMap[req.employeeId] || req.employeeId}</span>
+                            <span className="font-bold text-slate-900 text-sm">{employeesMap[req.employeeId] || req.employeeId}</span>
                             <span className="text-slate-500 text-xs">• {req.date}</span>
                          </div>
-                         <p className="text-slate-400 text-xs line-clamp-1">{req.hours} Jam: {req.reason}</p>
+                         <p className="text-slate-600 text-xs line-clamp-1">{req.hours} Jam: {req.reason}</p>
                       </div>
                       <div>
-                         <span className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded font-bold ${req.status === 'Approved' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>{req.status}</span>
+                         <span className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded font-bold ${req.status === 'Approved' ? 'bg-green-500/10 text-green-700 border border-green-500/20' : 'bg-red-500/10 text-red-700 border border-red-500/20'}`}>{req.status}</span>
                       </div>
                    </div>
                 ))
              )}
           </div>
       </div>
+      )}
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedImage(null)}
+        >
+          <img 
+            src={selectedImage} 
+            alt="Bukti Foto" 
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+          />
+          <button 
+            className="absolute top-6 right-6 text-slate-400 hover:text-white cursor-pointer"
+            onClick={() => setSelectedImage(null)}
+          >
+            Tutup
+          </button>
+        </div>
       )}
     </div>
   );

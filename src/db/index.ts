@@ -1,6 +1,9 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schema';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 export const createPool = () => {
   const envVars = process.env;
@@ -30,8 +33,8 @@ export const createPool = () => {
   // Fallback ke sistem database lokal dari AI Studio
   return new Pool({
     host: process.env.SQL_HOST,
-    user: process.env.SQL_USER,
-    password: process.env.SQL_PASSWORD,
+    user: process.env.SQL_ADMIN_USER || process.env.SQL_USER,
+    password: process.env.SQL_ADMIN_PASSWORD || process.env.SQL_PASSWORD,
     database: process.env.SQL_DB_NAME,
     connectionTimeoutMillis: 15000,
   });

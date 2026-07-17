@@ -127,14 +127,14 @@ export default function Payroll() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-white">Payroll Manager</h2>
-        <p className="text-slate-400">Kalkulasi gaji otomatis berdasarkan kehadiran dan lembur.</p>
+        <h2 className="text-2xl font-bold text-slate-900">Payroll Manager</h2>
+        <p className="text-slate-600">Kalkulasi gaji otomatis berdasarkan kehadiran dan lembur.</p>
       </div>
 
-      <div className="bg-[#0f172a] p-6 rounded-2xl shadow-lg border border-slate-800 flex flex-col md:flex-row gap-4 items-end">
+      <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1 space-y-2 w-full">
-          <label className="text-sm font-medium text-slate-300">Bulan</label>
-          <select value={month} onChange={e => setMonth(e.target.value)} className="w-full bg-[#1e293b] text-white border-slate-700 rounded-lg shadow-lg">
+          <label className="text-sm font-medium text-slate-700">Bulan</label>
+          <select value={month} onChange={e => setMonth(e.target.value)} className="w-full bg-slate-50 text-slate-900 border-slate-300 rounded-lg shadow-lg">
             {Array.from({length: 12}).map((_, i) => {
                const m = (i + 1).toString().padStart(2, '0');
                return <option key={m} value={m}>{format(new Date(2000, i, 1), 'MMMM')}</option>
@@ -142,8 +142,8 @@ export default function Payroll() {
           </select>
         </div>
         <div className="flex-1 space-y-2 w-full">
-          <label className="text-sm font-medium text-slate-300">Tahun</label>
-          <input type="number" value={year} onChange={e => setYear(e.target.value)} className="w-full bg-[#1e293b] text-white border-slate-700 rounded-lg shadow-lg" />
+          <label className="text-sm font-medium text-slate-700">Tahun</label>
+          <input type="number" value={year} onChange={e => setYear(e.target.value)} className="w-full bg-slate-50 text-slate-900 border-slate-300 rounded-lg shadow-lg" />
         </div>
         <button 
           onClick={calculatePayroll} 
@@ -156,19 +156,19 @@ export default function Payroll() {
       </div>
 
       {payrolls.length > 0 && (
-         <div className="bg-[#0f172a] rounded-2xl shadow-lg border border-slate-800 overflow-hidden flex flex-col">
-          <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-[#111827]">
-            <h3 className="text-lg font-semibold text-white">Hasil Perhitungan ({month}/{year})</h3>
+         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+            <h3 className="text-lg font-semibold text-slate-900">Hasil Perhitungan ({month}/{year})</h3>
             <button 
               onClick={handleExport}
-              className="flex items-center gap-2 bg-green-900/20 text-green-400 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-100 transition-colors"
+              className="flex items-center gap-2 bg-green-900/20 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-100 transition-colors"
             >
               <Download className="w-4 h-4" /> Export Excel
             </button>
           </div>
           <div className="overflow-x-auto">
              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-[#0f172a] text-slate-400 border-b border-slate-800">
+                <thead className="bg-white text-slate-600 border-b border-slate-200">
                   <tr>
                     <th className="px-6 py-4 font-medium">Pegawai</th>
                     <th className="px-6 py-4 font-medium text-right">Gaji Pokok</th>
@@ -176,17 +176,17 @@ export default function Payroll() {
                     <th className="px-6 py-4 font-medium text-right">Lembur (x 100rb)</th>
                     <th className="px-6 py-4 font-medium text-right text-teal-600">Total Tunjangan</th>
                     <th className="px-6 py-4 font-medium text-right text-rose-600">Total Potongan</th>
-                    <th className="px-6 py-4 font-bold text-white text-right text-base">Bersih</th>
+                    <th className="px-6 py-4 font-bold text-slate-900 text-right text-base">Bersih</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
+                <tbody className="divide-y divide-slate-200">
                   {payrolls.map((p) => (
-                    <tr key={p.id} className="hover:bg-[#111827]">
+                    <tr key={p.id} className="hover:bg-slate-50">
                       <td className="px-6 py-4">
-                        <div className="font-bold text-white">{p.name}</div>
-                        <div className="text-xs text-slate-400">{p.id}</div>
+                        <div className="font-bold text-slate-900">{p.name}</div>
+                        <div className="text-xs text-slate-600">{p.id}</div>
                       </td>
-                      <td className="px-6 py-4 text-right text-slate-300">Rp {p.baseSalary.toLocaleString('id-ID')}</td>
+                      <td className="px-6 py-4 text-right text-slate-700">Rp {p.baseSalary.toLocaleString('id-ID')}</td>
                       <td className="px-6 py-4 text-center text-green-600 font-medium">
                         {p.hadirCount}
                       </td>
@@ -199,14 +199,14 @@ export default function Payroll() {
                            <div key={i} className="text-xs">{a.name}: <span className="font-medium inline-block min-w-[70px]">Rp {Number(a.amount).toLocaleString('id-ID')}</span></div>
                         ))}
                         {(!p.allowances || p.allowances.length === 0) && <div className="text-xs text-slate-500">-</div>}
-                        <div className="border-t border-slate-700/50 mt-1 pt-1 font-bold text-sm">Rp {p.totalTunjanganTetap.toLocaleString('id-ID')}</div>
+                        <div className="border-t border-slate-300/50 mt-1 pt-1 font-bold text-sm">Rp {p.totalTunjanganTetap.toLocaleString('id-ID')}</div>
                       </td>
                       <td className="px-6 py-4 text-right text-rose-600">
                         {p.deductions?.map((d: any, i: number) => (
                            <div key={i} className="text-xs">{d.name}: <span className="font-medium inline-block min-w-[70px]">Rp {Number(d.amount).toLocaleString('id-ID')}</span></div>
                         ))}
                         {(!p.deductions || p.deductions.length === 0) && <div className="text-xs text-slate-500">-</div>}
-                        <div className="border-t border-slate-700/50 mt-1 pt-1 font-bold text-sm">Rp {p.totalPotongan.toLocaleString('id-ID')}</div>
+                        <div className="border-t border-slate-300/50 mt-1 pt-1 font-bold text-sm">Rp {p.totalPotongan.toLocaleString('id-ID')}</div>
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-blue-600 text-base">
                         Rp {p.total.toLocaleString('id-ID')}

@@ -38,6 +38,7 @@ export interface Employee {
   subDepartmentId: string;
   baseSalary: number;
   role: string;
+  status?: 'Aktif' | 'Resign' | 'Habis Kontrak' | 'Pensiun' | 'Sanksi';
   createdAt: number;
   updatedAt: number;
 }

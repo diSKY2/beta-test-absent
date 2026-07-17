@@ -66,7 +66,7 @@ async function main() {
   try {
      const atts = await db.select().from(schema.attendances);
      for (const a of atts) {
-       const as = {...a};
+       const as: any = {...a};
        if (as.date) as.date = (as.date as Date).getTime() as any;
        if (as.createdAt) as.createdAt = (as.createdAt as Date).getTime() as any;
        if (as.updatedAt) as.updatedAt = (as.updatedAt as Date).getTime() as any;

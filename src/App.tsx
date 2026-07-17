@@ -19,6 +19,7 @@ import Geofencing from './pages/admin/Geofencing';
 import CMS from './pages/admin/CMS';
 import HRAdminManager from './pages/admin/HRAdminManager';
 import WorkReports from './pages/admin/WorkReports';
+import EmployeePortal from './pages/EmployeePortal';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, loading } = useAuth();
@@ -30,6 +31,22 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const isMobileApp = (window as any).Capacitor?.isNativePlatform();
+
+  if (isMobileApp) {
+    return (
+      <AuthProvider>
+        <ToastProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="*" element={<EmployeePortal />} />
+            </Routes>
+          </BrowserRouter>
+        </ToastProvider>
+      </AuthProvider>
+    );
+  }
+
   return (
     <AuthProvider>
       <ToastProvider>
@@ -37,6 +54,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/pegawai" element={<EmployeePortal />} />
             <Route 
               path="/admin" 
               element={

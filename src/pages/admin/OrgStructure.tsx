@@ -47,7 +47,7 @@ function OrgStructure() {
   const [selSub, setSelSub] = useState('');
 
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', role: 'Anggota', baseSalary: '', nik: '', password: '', profilePicUrl: '' });
+  const [form, setForm] = useState({ name: '', role: 'Anggota', baseSalary: '', nik: '', password: '', profilePicUrl: '', status: 'Aktif' });
   const [isUploading, setIsUploading] = useState(false);
 
   const handleUploadProfilePic = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,7 +116,7 @@ function OrgStructure() {
 
   const resetForm = () => {
     setEditId(null);
-    setForm({ name: '', role: 'Anggota', baseSalary: '', nik: '', password: '', profilePicUrl: '' });
+    setForm({ name: '', role: 'Anggota', baseSalary: '', nik: '', password: '', profilePicUrl: '', status: 'Aktif' });
     setAllowances([{ id: 't-jabatan', name: 'Tunjangan Jabatan', amount: '', isFixedName: false }]);
     setDeductions([
       { id: 'p-bpjstk', name: 'BPJS Ketenagakerjaan', amount: '', isFixedName: false },
@@ -134,7 +134,8 @@ function OrgStructure() {
       nik: employee.nik || '',
       password: employee.password || '',
       baseSalary: employee.baseSalary?.toString() || '',
-      profilePicUrl: employee.profilePicUrl || ''
+      profilePicUrl: employee.profilePicUrl || '',
+      status: employee.status || 'Aktif'
     });
     
     if (employee.allowances && employee.allowances.length > 0) {
@@ -178,6 +179,7 @@ function OrgStructure() {
         departmentId: selDept,
         subDepartmentId: selSub,
         profilePicUrl: form.profilePicUrl || '',
+        status: form.status || 'Aktif',
         updatedAt: Date.now()
       };
 
@@ -233,29 +235,41 @@ function OrgStructure() {
   // Tree View data modeling
   const renderTree = () => {
     return locations.map(loc => (
-      <div key={loc.id} className="mb-4 pl-4 border-l-2 border-slate-700 text-sm">
-        <div className="font-bold text-white flex items-center gap-2 mb-2">
+      <div key={loc.id} className="mb-4 pl-4 border-l-2 border-slate-300 text-sm">
+        <div className="font-bold text-slate-900 flex items-center gap-2 mb-2">
            <MapPin className="w-4 h-4 text-emerald-500" /> {loc.name}
         </div>
         {departments.filter(d => d.locationId === loc.id).map(dept => (
-           <div key={dept.id} className="pl-6 border-l-2 border-slate-700/50 my-2">
-             <div className="font-semibold text-white mb-1">{dept.name}</div>
+           <div key={dept.id} className="pl-6 border-l-2 border-slate-300/50 my-2">
+             <div className="font-semibold text-slate-900 mb-1">{dept.name}</div>
              {subDepartments.filter(s => s.departmentId === dept.id).map(sub => (
-                <div key={sub.id} className="pl-6 border-l-2 border-slate-700/30 py-1">
-                  <div className="text-slate-400 italic mb-1">{sub.name}</div>
+                <div key={sub.id} className="pl-6 border-l-2 border-slate-300/30 py-1">
+                  <div className="text-slate-600 italic mb-1">{sub.name}</div>
                   <div className="pl-4 flex flex-wrap gap-2">
                     {employees.filter(e => e.subDepartmentId === sub.id).map(emp => (
-                       <div key={emp.id} className="bg-[#0f172a] border border-slate-700 px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-3 group">
+                       <div key={emp.id} className="bg-white border border-slate-300 px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-3 group">
                          {emp.profilePicUrl ? (
                            <img src={emp.profilePicUrl} alt={emp.name} referrerPolicy="no-referrer" className="w-8 h-8 rounded-full object-cover border border-slate-600" />
                          ) : (
-                           <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 text-slate-500 font-bold text-xs">
+                           <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-300 text-slate-500 font-bold text-xs">
                              {emp.name ? emp.name.charAt(0).toUpperCase() : '?'}
                            </div>
                          )}
                          <div>
-                           <div className="font-medium text-white">{emp.name} {emp.nik && <span className="text-xs text-teal-500 font-mono">({emp.nik})</span>}</div>
-                           <div className="text-xs text-slate-400">{emp.role} {emp.password && <span className="text-slate-300  transition-opacity ml-2">P: {emp.password}</span>}</div>
+                           <div className="font-medium text-slate-900 flex items-center gap-1.5 flex-wrap">
+                             <span>{emp.name}</span>
+                             {emp.nik && <span className="text-xs text-blue-600 font-mono">({emp.nik})</span>}
+                             {emp.status && emp.status !== 'Aktif' ? (
+                               <span className="text-[9px] font-black px-2 py-0.5 bg-red-100 text-red-800 border border-red-200 rounded uppercase font-mono">
+                                 {emp.status}
+                               </span>
+                             ) : (
+                               <span className="text-[9px] font-black px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded uppercase font-mono">
+                                 Aktif
+                               </span>
+                             )}
+                           </div>
+                           <div className="text-xs text-slate-600">{emp.role} {emp.password && <span className="text-slate-700  transition-opacity ml-2">P: {emp.password}</span>}</div>
                          </div>
                          <div className="flex gap-1 ml-auto">
                            <button onClick={() => handleEdit(emp)} className="text-sky-500 hover:bg-sky-500/10 p-1.5 rounded-lg transition-colors"><Pencil className="w-4 h-4"/></button>
@@ -276,62 +290,62 @@ function OrgStructure() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-white">Manajemen Pegawai & Organisasi</h2>
-        <p className="text-slate-400">Struktur berjenjang dan manajemen opsi pegawai.</p>
+        <h2 className="text-2xl font-bold text-slate-900">Manajemen Pegawai & Organisasi</h2>
+        <p className="text-slate-600">Struktur berjenjang dan manajemen opsi pegawai.</p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
         
-        <div className="lg:col-span-1 bg-[#0f172a] p-6 rounded-2xl shadow-lg border border-slate-800 h-fit max-h-[85vh] overflow-y-auto custom-scrollbar">
+        <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-lg border border-slate-200 h-fit max-h-[85vh] overflow-y-auto custom-scrollbar">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
                 {editId ? <Pencil className="w-4 h-4 text-blue-500" /> : <UserPlus className="w-4 h-4 text-blue-500" />}
               </div>
               {editId ? 'Edit Pegawai' : 'Tambah Pegawai'}
             </h3>
             {editId && (
-               <button onClick={resetForm} className="text-slate-400 hover:text-white transition-colors text-xs font-semibold px-2 py-1 border border-slate-700 bg-slate-800 rounded">
+               <button onClick={resetForm} className="text-slate-600 hover:text-slate-900 transition-colors text-xs font-semibold px-2 py-1 border border-slate-300 bg-slate-100 rounded">
                  Batal Edit
                </button>
             )}
           </div>
           <form onSubmit={handleAddEmployee} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Lokasi Cabang</label>
-              <select required className="w-full text-sm bg-[#0f172a] text-white rounded-lg border border-slate-700 focus:ring-teal-500 focus:border-teal-500 transition-colors" value={selLoc} onChange={e => {setSelLoc(e.target.value); setSelDept(''); setSelSub('');}}>
-                <option value="" className="text-slate-400">Pilih Lokasi</option>
+              <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Lokasi Cabang</label>
+              <select required className="w-full text-sm bg-white text-slate-900 rounded-lg border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={selLoc} onChange={e => {setSelLoc(e.target.value); setSelDept(''); setSelSub('');}}>
+                <option value="" className="text-slate-600">Pilih Lokasi</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Bagian (Departemen)</label>
-              <select required className="w-full text-sm bg-[#0f172a] text-white rounded-lg border border-slate-700 focus:ring-teal-500 focus:border-teal-500 transition-colors" value={selDept} onChange={e => {setSelDept(e.target.value); setSelSub('');}} disabled={!selLoc}>
-                <option value="" className="text-slate-400">Pilih Bagian</option>
+              <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Bagian (Departemen)</label>
+              <select required className="w-full text-sm bg-white text-slate-900 rounded-lg border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={selDept} onChange={e => {setSelDept(e.target.value); setSelSub('');}} disabled={!selLoc}>
+                <option value="" className="text-slate-600">Pilih Bagian</option>
                 {departments.filter(d => d.locationId === selLoc).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Sub-Bagian (Regu)</label>
-              <select required className="w-full text-sm bg-[#0f172a] text-white rounded-lg border border-slate-700 focus:ring-teal-500 focus:border-teal-500 transition-colors" value={selSub} onChange={e => setSelSub(e.target.value)} disabled={!selDept}>
-                <option value="" className="text-slate-400">Pilih Sub-Bagian</option>
+              <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Sub-Bagian (Regu)</label>
+              <select required className="w-full text-sm bg-white text-slate-900 rounded-lg border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={selSub} onChange={e => setSelSub(e.target.value)} disabled={!selDept}>
+                <option value="" className="text-slate-600">Pilih Sub-Bagian</option>
                 {subDepartments.filter(s => s.departmentId === selDept).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
-            <div className="pt-4 border-t border-slate-800 space-y-4">
+            <div className="pt-4 border-t border-slate-200 space-y-4">
                <div>
-                 <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Foto Profil</label>
+                 <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Foto Profil</label>
                  <div className="flex items-center gap-4">
                     {form.profilePicUrl ? (
                       <div className="relative group w-16 h-16">
-                         <img src={form.profilePicUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover border-2 border-slate-700" />
+                         <img src={form.profilePicUrl} alt="Profile" className="w-16 h-16 rounded-full object-cover border-2 border-slate-300" />
                          <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <label className="cursor-pointer text-[10px] text-white font-bold text-center">Ubah<input type="file" hidden accept="image/*" onChange={handleUploadProfilePic} disabled={isUploading} /></label>
+                            <label className="cursor-pointer text-[10px] text-slate-900 font-bold text-center">Ubah<input type="file" hidden accept="image/*" onChange={handleUploadProfilePic} disabled={isUploading} /></label>
                          </div>
                       </div>
                     ) : (
-                      <label className={`w-16 h-16 rounded-full bg-[#0f172a] border-2 border-dashed border-slate-700 flex flex-col items-center justify-center cursor-pointer hover:border-teal-500 transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                        <div className="text-[10px] text-slate-400 font-bold">{isUploading ? '...' : 'Upload'}</div>
+                      <label className={`w-16 h-16 rounded-full bg-white border-2 border-dashed border-slate-300 flex flex-col items-center justify-center cursor-pointer hover:border-teal-500 transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        <div className="text-[10px] text-slate-600 font-bold">{isUploading ? '...' : 'Upload'}</div>
                         <input type="file" hidden accept="image/*" onChange={handleUploadProfilePic} disabled={isUploading} />
                       </label>
                     )}
@@ -343,46 +357,57 @@ function OrgStructure() {
                </div>
 
                <div>
-                 <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Nama Pegawai</label>
-                 <input required type="text" className="w-full text-sm bg-[#0f172a] text-white placeholder-slate-500 rounded-lg border border-slate-700 focus:ring-teal-500 focus:border-teal-500 transition-colors" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} placeholder="Masukkan nama panggilan / lengkap" />
+                 <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Nama Pegawai</label>
+                 <input required type="text" className="w-full text-sm bg-white text-slate-900 placeholder-slate-500 rounded-lg border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} placeholder="Masukkan nama panggilan / lengkap" />
                </div>
                
                <div>
-                 <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Jabatan / Role</label>
-                 <select required className="w-full text-sm bg-[#0f172a] text-white rounded-lg border border-slate-700 focus:ring-teal-500 focus:border-teal-500 transition-colors" value={form.role} onChange={e=>setForm({...form, role: e.target.value})}>
+                  <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Jabatan / Role</label>
+                  <select required className="w-full text-sm bg-white text-slate-900 rounded-lg border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={form.role} onChange={e=>setForm({...form, role: e.target.value})}>
                     <option value="Anggota">Anggota</option>
                     <option value="Ketua">Ketua</option>
-                 </select>
-               </div>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Status Akun Karyawan</label>
+                  <select required className="w-full text-sm bg-white text-slate-900 rounded-lg border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={form.status || 'Aktif'} onChange={e=>setForm({...form, status: e.target.value as any})}>
+                    <option value="Aktif">Aktif / Beroperasi</option>
+                    <option value="Resign">Nonaktif: Resign</option>
+                    <option value="Habis Kontrak">Nonaktif: Habis Kontrak</option>
+                    <option value="Pensiun">Nonaktif: Pensiun</option>
+                    <option value="Sanksi">Nonaktif: Sedang Terkena Sanksi</option>
+                  </select>
+                </div>
                
                <div>
-                 <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">NIK (Nomor Induk Karyawan)</label>
+                 <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">NIK (Nomor Induk Karyawan)</label>
                  <div className="flex gap-2">
-                   <input required type="text" className="w-full text-sm bg-[#0f172a] text-white placeholder-slate-500 rounded-lg border border-slate-700 focus:ring-teal-500 focus:border-teal-500 transition-colors" value={form.nik} onChange={e=>setForm({...form, nik: e.target.value})} placeholder="Contoh: GT1234" />
-                   <button type="button" onClick={generateNIK} className="bg-slate-700 text-white text-xs px-3 py-2 rounded-lg font-semibold hover:bg-slate-600 transition-colors whitespace-nowrap">Generate NIK</button>
+                   <input required type="text" className="w-full text-sm bg-white text-slate-900 placeholder-slate-500 rounded-lg border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={form.nik} onChange={e=>setForm({...form, nik: e.target.value})} placeholder="Contoh: GT1234" />
+                   <button type="button" onClick={generateNIK} className="bg-slate-200 text-slate-900 text-xs px-3 py-2 rounded-lg font-semibold hover:bg-slate-600 transition-colors whitespace-nowrap">Generate NIK</button>
                  </div>
                </div>
                
                <div>
-                 <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Password (Login Aplikasi)</label>
+                 <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Password (Login Aplikasi)</label>
                  <div className="flex gap-2">
-                   <input required type="text" className="w-full text-sm bg-[#0f172a] text-white placeholder-slate-500 rounded-lg border border-slate-700 focus:ring-teal-500 focus:border-teal-500 transition-colors" value={form.password} onChange={e=>setForm({...form, password: e.target.value})} placeholder="Buat / Generate password" />
-                   <button type="button" onClick={generatePassword} className="bg-slate-700 text-white text-xs px-3 py-2 rounded-lg font-semibold hover:bg-slate-600 transition-colors whitespace-nowrap">Generate</button>
+                   <input required type="text" className="w-full text-sm bg-white text-slate-900 placeholder-slate-500 rounded-lg border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={form.password} onChange={e=>setForm({...form, password: e.target.value})} placeholder="Buat / Generate password" />
+                   <button type="button" onClick={generatePassword} className="bg-slate-200 text-slate-900 text-xs px-3 py-2 rounded-lg font-semibold hover:bg-slate-600 transition-colors whitespace-nowrap">Generate</button>
                  </div>
                </div>
 
                <div>
-                 <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Gaji Pokok (Rp)</label>
-                 <input required type="number" className="w-full text-sm bg-[#0f172a] text-white placeholder-slate-500 rounded-lg border border-slate-700 focus:ring-teal-500 focus:border-teal-500 transition-colors" value={form.baseSalary} onChange={e=>setForm({...form, baseSalary: e.target.value})} placeholder="Contoh: 4500000" />
+                 <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Gaji Pokok (Rp)</label>
+                 <input required type="number" className="w-full text-sm bg-white text-slate-900 placeholder-slate-500 rounded-lg border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={form.baseSalary} onChange={e=>setForm({...form, baseSalary: e.target.value})} placeholder="Contoh: 4500000" />
                </div>
             </div>
 
             {/* TUNJANGAN */}
-            <div className="pt-4 border-t border-slate-800">
+            <div className="pt-4 border-t border-slate-200">
                <div className="flex justify-between items-center mb-3">
-                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Tunjangan</label>
+                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Tunjangan</label>
                  {allowances.length < 5 && (
-                   <button type="button" onClick={addAllowance} className="text-teal-400 text-xs font-semibold hover:text-teal-300 flex items-center gap-1">
+                   <button type="button" onClick={addAllowance} className="text-blue-600 text-xs font-semibold hover:text-teal-300 flex items-center gap-1">
                      <Plus className="w-3 h-3"/> Tambah
                    </button>
                  )}
@@ -391,20 +416,20 @@ function OrgStructure() {
                  {allowances.map((al, idx) => (
                     <div key={al.id} className="flex gap-2 items-start">
                       <div className="flex-1 space-y-2">
-                        <input type="text" className="w-full text-xs bg-[#0f172a] text-white placeholder-slate-500 rounded border border-slate-700 focus:ring-teal-500 focus:border-teal-500 transition-colors p-2" placeholder="Nama Tunjangan" value={al.name} onChange={e => updateAllowance(al.id, 'name', e.target.value)} disabled={al.isFixedName} />
-                        <input type="number" className="w-full text-xs bg-[#0f172a] text-white placeholder-slate-500 rounded border border-slate-700 focus:ring-teal-500 focus:border-teal-500 transition-colors p-2" placeholder="Nominal (Rp)" value={al.amount} onChange={e => updateAllowance(al.id, 'amount', e.target.value)} />
+                        <input type="text" className="w-full text-xs bg-white text-slate-900 placeholder-slate-500 rounded border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors p-2" placeholder="Nama Tunjangan" value={al.name} onChange={e => updateAllowance(al.id, 'name', e.target.value)} disabled={al.isFixedName} />
+                        <input type="number" className="w-full text-xs bg-white text-slate-900 placeholder-slate-500 rounded border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors p-2" placeholder="Nominal (Rp)" value={al.amount} onChange={e => updateAllowance(al.id, 'amount', e.target.value)} />
                       </div>
-                      <button type="button" onClick={() => removeAllowance(al.id)} className="mt-1 text-slate-400 hover:text-rose-400 p-1"><X className="w-4 h-4"/></button>
+                      <button type="button" onClick={() => removeAllowance(al.id)} className="mt-1 text-slate-600 hover:text-rose-400 p-1"><X className="w-4 h-4"/></button>
                     </div>
                  ))}
-                 {allowances.length === 0 && <p className="text-xs text-slate-400 italic">Tidak ada tunjangan</p>}
+                 {allowances.length === 0 && <p className="text-xs text-slate-600 italic">Tidak ada tunjangan</p>}
                </div>
             </div>
 
             {/* POTONGAN */}
-            <div className="pt-4 border-t border-slate-800">
+            <div className="pt-4 border-t border-slate-200">
                <div className="flex justify-between items-center mb-3">
-                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Potongan</label>
+                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Potongan</label>
                  {deductions.length < 5 && (
                    <button type="button" onClick={addDeduction} className="text-rose-400 text-xs font-semibold hover:text-rose-300 flex items-center gap-1">
                      <Plus className="w-3 h-3"/> Tambah
@@ -415,27 +440,27 @@ function OrgStructure() {
                  {deductions.map((dd, idx) => (
                     <div key={dd.id} className="flex gap-2 items-start">
                       <div className="flex-1 space-y-2">
-                        <input type="text" className="w-full text-xs bg-[#0f172a] text-white placeholder-slate-500 rounded border border-slate-700 focus:ring-rose-500 focus:border-rose-500 transition-colors p-2" placeholder="Nama Potongan" value={dd.name} onChange={e => updateDeduction(dd.id, 'name', e.target.value)} disabled={dd.isFixedName} />
-                        <input type="number" className="w-full text-xs bg-[#0f172a] text-white placeholder-slate-500 rounded border border-slate-700 focus:ring-rose-500 focus:border-rose-500 transition-colors p-2" placeholder="Nominal (Rp)" value={dd.amount} onChange={e => updateDeduction(dd.id, 'amount', e.target.value)} />
+                        <input type="text" className="w-full text-xs bg-white text-slate-900 placeholder-slate-500 rounded border border-slate-300 focus:ring-rose-500 focus:border-rose-500 transition-colors p-2" placeholder="Nama Potongan" value={dd.name} onChange={e => updateDeduction(dd.id, 'name', e.target.value)} disabled={dd.isFixedName} />
+                        <input type="number" className="w-full text-xs bg-white text-slate-900 placeholder-slate-500 rounded border border-slate-300 focus:ring-rose-500 focus:border-rose-500 transition-colors p-2" placeholder="Nominal (Rp)" value={dd.amount} onChange={e => updateDeduction(dd.id, 'amount', e.target.value)} />
                       </div>
-                      <button type="button" onClick={() => removeDeduction(dd.id)} className="mt-1 text-slate-400 hover:text-rose-400 p-1"><X className="w-4 h-4"/></button>
+                      <button type="button" onClick={() => removeDeduction(dd.id)} className="mt-1 text-slate-600 hover:text-rose-400 p-1"><X className="w-4 h-4"/></button>
                     </div>
                  ))}
-                 {deductions.length === 0 && <p className="text-xs text-slate-400 italic">Tidak ada potongan</p>}
+                 {deductions.length === 0 && <p className="text-xs text-slate-600 italic">Tidak ada potongan</p>}
                </div>
             </div>
 
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-3 rounded-xl transition-colors shadow-lg shadow-blue-900/20 mt-4">
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-slate-900 text-sm font-bold py-3 rounded-xl transition-colors shadow-lg shadow-blue-900/20 mt-4">
               Simpan Data Pegawai
             </button>
           </form>
         </div>
 
-        <div className="lg:col-span-2 bg-[#0f172a] p-6 rounded-2xl shadow-lg border border-slate-800 h-fit">
-           <h3 className="text-lg font-bold text-white mb-6">Tree Diagram Organisasi</h3>
-           <div className="overflow-x-auto bg-[#111827] p-6 rounded-xl border border-slate-800 min-h-[400px]">
+        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-lg border border-slate-200 h-fit">
+           <h3 className="text-lg font-bold text-slate-900 mb-6">Tree Diagram Organisasi</h3>
+           <div className="overflow-x-auto bg-slate-50 p-6 rounded-xl border border-slate-200 min-h-[400px]">
               {locations.length === 0 ? (
-                <p className="text-slate-400 italic text-sm">Tambahkan Lokasi/Departemen/Sub-Departemen di Menu Geofencing atau database.</p>
+                <p className="text-slate-600 italic text-sm">Tambahkan Lokasi/Departemen/Sub-Departemen di Menu Geofencing atau database.</p>
               ) : (
                 renderTree()
               )}

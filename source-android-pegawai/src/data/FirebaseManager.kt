@@ -25,8 +25,8 @@ data class EmployeeData(
 
 object FirebaseManager {
     // GANTI IP INI KE IP KOMPUTER SERVER (Jika pakai emulator Android Studio: 10.0.2.2)
-    // Jika dideploy ke Vercel, ganti dengan URL Vercel.
-    private const val BASE_URL = "http://10.0.2.2:3000/api"
+    // Jika menggunakan server cloud saat ini (Production/Staging Web HRD):
+    private const val BASE_URL = "https://beta-test-absent-production.up.railway.app/api"
 
     private suspend fun postRequest(endpoint: String, jsonBody: String): String = withContext(Dispatchers.IO) {
         val url = URL("$BASE_URL$endpoint")

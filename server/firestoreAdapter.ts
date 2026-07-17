@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../src/db';
 import * as schema from '../src/db/schema';
-import { eq, and, or, sql, desc, asc } from 'drizzle-orm';
+import { eq, and, or, sql, desc, asc, inArray, gte, lte } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 
 export const genericDbRouter = express.Router();
@@ -23,9 +23,10 @@ genericDbRouter.post('/rpc', async (req, res) => {
     if (collection === 'company_info') table = schema.companyInfo;
     if (collection === 'work_reports') table = schema.workReports;
     if (collection === 'galleries') table = schema.galleries;
+    if (collection === 'agendas') table = schema.agendas;
 
     if (!table) {
-      if (collection === 'admins' || collection === 'locations' || collection === 'departments' || collection === 'employees' || collection === 'schedules' || collection === 'attendances' || collection === 'announcements') {
+      if (collection === 'admins' || collection === 'locations' || collection === 'departments' || collection === 'employees' || collection === 'schedules' || collection === 'attendances' || collection === 'announcements' || collection === 'agendas') {
         table = (schema as any)[collection];
       }
     }
@@ -44,11 +45,26 @@ genericDbRouter.post('/rpc', async (req, res) => {
         const conditions = activeFilters.map((f: any) => {
           let fieldName = f.field;
           if (collection === 'company_info' && fieldName === 'key') fieldName = 'configKey';
+          if (collection === 'attendances' && fieldName === 'date') fieldName = 'attendanceDate';
+          if (collection === 'leave_requests' && fieldName === 'date') fieldName = 'requestDate';
+          if (collection === 'overtime_requests' && fieldName === 'date') fieldName = 'requestDate';
           
           const operator = f.op || f.operator;
           const val = f.value !== undefined ? f.value : f.val;
-          if (operator === '==' && table[fieldName]) {
-            return eq(table[fieldName], val);
+          if (table[fieldName]) {
+            if (operator === '==') return eq(table[fieldName], val);
+            if (operator === 'in') return inArray(table[fieldName], val);
+            if (operator === '>=') {
+               // Assuming it's a date or timestamp if it's compared with >=
+               return sql`${table[fieldName]} >= ${val}`;
+            }
+            if (operator === '<=') {
+               let finalVal = val;
+               if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                   finalVal = `${val} 23:59:59`;
+               }
+               return sql`${table[fieldName]} <= ${finalVal}`;
+            }
           }
           return undefined;
         }).filter(Boolean);
@@ -82,12 +98,13 @@ genericDbRouter.post('/rpc', async (req, res) => {
       }
     } 
     else if (action === 'addDoc') {
-      const newId = uuidv4();
+      const newId = data.id || uuidv4();
       
       const convertDates = (obj: any) => {
         const res = { ...obj };
         const dateKeyRegex = /^(createdAt|updatedAt|startDate|overrideDate|scheduleDate|attendanceDate|requestDate|date)$/;
         for (const k in res) {
+          if (collection === 'agendas' && k === 'date') continue;
           if (dateKeyRegex.test(k) && res[k] !== null && res[k] !== undefined) {
             if (res[k] && typeof res[k] === 'object' && 'seconds' in res[k]) {
                res[k] = new Date(res[k].seconds * 1000);
@@ -115,6 +132,9 @@ genericDbRouter.post('/rpc', async (req, res) => {
       // ------------------------------------------
 
       const insertData = { ...safeData, id: newId };
+      if (collection === "employees" && (insertData.baseSalary === null || insertData.baseSalary === undefined)) {
+        insertData.baseSalary = 0;
+      }
       
       // if dealing with employees, we have to split allowances/deductions
       if (collection === 'employees') {
@@ -169,6 +189,7 @@ genericDbRouter.post('/rpc', async (req, res) => {
         const res = { ...obj };
         const dateKeyRegex = /^(createdAt|updatedAt|startDate|overrideDate|scheduleDate|attendanceDate|requestDate|date)$/;
         for (const k in res) {
+          if (collection === 'agendas' && k === 'date') continue;
           if (dateKeyRegex.test(k) && res[k] !== null && res[k] !== undefined) {
             if (res[k] && typeof res[k] === 'object' && 'seconds' in res[k]) {
                res[k] = new Date(res[k].seconds * 1000);
@@ -251,6 +272,7 @@ genericDbRouter.post('/rpc', async (req, res) => {
         const res = { ...obj };
         const dateKeyRegex = /^(createdAt|updatedAt|startDate|overrideDate|scheduleDate|attendanceDate|requestDate|date)$/;
         for (const k in res) {
+          if (collection === 'agendas' && k === 'date') continue;
           if (dateKeyRegex.test(k) && res[k] !== null && res[k] !== undefined) {
              if (res[k] && typeof res[k] === 'object' && 'seconds' in res[k]) res[k] = new Date(res[k].seconds * 1000);
              else if (typeof res[k] === 'number' || typeof res[k] === 'string') {
@@ -283,6 +305,7 @@ genericDbRouter.post('/rpc', async (req, res) => {
         const res = { ...obj };
         const dateKeyRegex = /^(createdAt|updatedAt|startDate|overrideDate|scheduleDate|attendanceDate|requestDate|date)$/;
         for (const k in res) {
+          if (collection === 'agendas' && k === 'date') continue;
           if (dateKeyRegex.test(k) && res[k] !== null && res[k] !== undefined) {
             if (res[k] && typeof res[k] === 'object' && 'seconds' in res[k]) {
                res[k] = new Date(res[k].seconds * 1000);
@@ -334,7 +357,13 @@ genericDbRouter.post('/rpc', async (req, res) => {
     }
   } catch (err: any) {
     console.error('RPC Error:', err, err.cause);
-    const errorMessage = err.cause ? `${err.message} - Cause: ${err.cause.message || JSON.stringify(err.cause)}` : err.message;
+    let errorMessage = err.cause ? `${err.message} - Cause: ${err.cause.message || JSON.stringify(err.cause)}` : err.message;
+      if (errorMessage.includes("violates foreign key constraint")) {
+         if (errorMessage.includes("location_id")) errorMessage = "Lokasi yang dipilih tidak valid atau sudah dihapus. Silakan muat ulang halaman.";
+         else if (errorMessage.includes("department_id")) errorMessage = "Bagian yang dipilih tidak valid atau sudah dihapus. Silakan muat ulang halaman.";
+         else if (errorMessage.includes("sub_department_id")) errorMessage = "Sub-Bagian yang dipilih tidak valid atau sudah dihapus. Silakan muat ulang halaman.";
+         else errorMessage = "Data relasi tidak valid (kemungkinan referensi data sudah dihapus). Silakan muat ulang halaman.";
+      }
     res.status(500).json({ error: errorMessage });
   }
 });

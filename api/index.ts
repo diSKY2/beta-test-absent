@@ -30,7 +30,8 @@ app.get("/api/health", (req, res) => {
 // Login khusus mobile
 app.post("/api/mobile/login", async (req, res) => {
   try {
-    const { nik, password } = req.body;
+    const password = req.body.password;
+    const nik = req.body.nik || req.body.email;
     const employeeResult = await db.select().from(employees).where(eq(employees.nik, nik));
     
     if (employeeResult.length === 0) {

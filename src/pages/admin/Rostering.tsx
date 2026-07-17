@@ -354,35 +354,35 @@ export default function Rostering() {
   };
 
   const colors = [
-    { label: 'Gray', value: 'bg-gray-100 text-slate-300' },
+    { label: 'Gray', value: 'bg-gray-100 text-slate-700' },
     { label: 'Red (Libur/Off)', value: 'bg-red-100 text-red-700' },
     { label: 'Blue', value: 'bg-blue-100 text-blue-700' },
-    { label: 'Green', value: 'bg-green-100 text-green-400' },
+    { label: 'Green', value: 'bg-green-100 text-green-700' },
     { label: 'Purple', value: 'bg-purple-100 text-purple-700' },
-    { label: 'Amber', value: 'bg-amber-100 text-amber-400' },
+    { label: 'Amber', value: 'bg-whitember-100 text-amber-400' },
   ];
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-white">Dynamic Rostering ({selectedSub && subDepts.find(s=>s.id === selectedSub)?.name})</h2>
-        <p className="text-slate-400">Atur jam shift kustom per cabang/regu, lalu atur pola berulang bulanan otomatis.</p>
+        <h2 className="text-2xl font-bold text-slate-900">Dynamic Rostering ({selectedSub && subDepts.find(s=>s.id === selectedSub)?.name})</h2>
+        <p className="text-slate-600">Atur jam shift kustom per cabang/regu, lalu atur pola berulang bulanan otomatis.</p>
       </div>
 
-      <div className="bg-[#0f172a] p-6 rounded-2xl shadow-lg border border-slate-800">
+      <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
          <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="flex-1 w-full">
-              <label className="text-sm font-medium text-slate-300 mb-2 block">Pilih Regu / Sub-Bagian Untuk Diatur</label>
-              <select value={selectedSub} onChange={e => setSelectedSub(e.target.value)} className="w-full border-slate-700 rounded-lg shadow-lg bg-[#0f172a] text-white">
+              <label className="text-sm font-medium text-slate-700 mb-2 block">Pilih Regu / Sub-Bagian Untuk Diatur</label>
+              <select value={selectedSub} onChange={e => setSelectedSub(e.target.value)} className="w-full border-slate-300 rounded-lg shadow-lg bg-white text-slate-900">
                 {subDepts.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
          </div>
          
-         <div className="flex border-b border-slate-800 w-full overflow-x-auto">
-            <button onClick={()=>setActiveTab('shifts')} className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab==='shifts' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-700'}`}>1. Master Jam Shift</button>
-            <button onClick={()=>setActiveTab('pattern')} className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab==='pattern' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-700'}`}>2. Definisi Pola (Pattern)</button>
-            <button onClick={()=>setActiveTab('calendar')} className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab==='calendar' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-700'}`}>3. Kalender (Hasil & Set Pengecualian)</button>
+         <div className="flex border-b border-slate-200 w-full overflow-x-auto">
+            <button onClick={()=>setActiveTab('shifts')} className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab==='shifts' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-600 hover:text-slate-700'}`}>1. Master Jam Shift</button>
+            <button onClick={()=>setActiveTab('pattern')} className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab==='pattern' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-600 hover:text-slate-700'}`}>2. Definisi Pola (Pattern)</button>
+            <button onClick={()=>setActiveTab('calendar')} className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab==='calendar' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-600 hover:text-slate-700'}`}>3. Kalender (Hasil & Set Pengecualian)</button>
          </div>
 
          {/* SHIFT TAB */}
@@ -390,12 +390,12 @@ export default function Rostering() {
            <div className="mt-6 space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
                  {/* Form */}
-                 <div className="bg-[#111827] p-6 rounded-xl border border-slate-800">
-                    <h4 className="font-semibold text-white mb-4 flex items-center gap-2"><Clock className="w-4 h-4"/> Tambah Jam Shift Baru</h4>
+                 <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                    <h4 className="font-semibold text-slate-900 mb-4 flex items-center gap-2"><Clock className="w-4 h-4"/> Tambah Jam Shift Baru</h4>
                     <form onSubmit={handleSaveShift} className="space-y-4">
                        <div>
-                         <label className="block text-xs font-medium text-slate-400 mb-1">Nama Shift (Misal: Pagi, Malam, Libur)</label>
-                         <input required type="text" className="w-full text-sm border-slate-700 rounded-lg bg-[#0f172a] text-white" value={newShift.name} onChange={e=>setNewShift({...newShift, name: e.target.value})} />
+                         <label className="block text-xs font-medium text-slate-600 mb-1">Nama Shift (Misal: Pagi, Malam, Libur)</label>
+                         <input required type="text" className="w-full text-sm border-slate-300 rounded-lg bg-white text-slate-900" value={newShift.name} onChange={e=>setNewShift({...newShift, name: e.target.value})} />
                        </div>
                        
                        <div className="flex items-center gap-2">
@@ -407,12 +407,12 @@ export default function Rostering() {
                          <>
                            <div className="grid grid-cols-2 gap-4">
                               <div>
-                                 <label className="block text-xs font-medium text-slate-400 mb-1">Jam Mulai</label>
-                                 <input required type="time" className="w-full text-sm border-slate-700 rounded-lg bg-[#0f172a] text-white" value={newShift.startTime} onChange={e=>setNewShift({...newShift, startTime: e.target.value})} />
+                                 <label className="block text-xs font-medium text-slate-600 mb-1">Jam Mulai</label>
+                                 <input required type="time" className="w-full text-sm border-slate-300 rounded-lg bg-white text-slate-900" value={newShift.startTime} onChange={e=>setNewShift({...newShift, startTime: e.target.value})} />
                               </div>
                               <div>
-                                 <label className="block text-xs font-medium text-slate-400 mb-1">Jam Pulang</label>
-                                 <input required type="time" className="w-full text-sm border-slate-700 rounded-lg bg-[#0f172a] text-white" value={newShift.endTime} onChange={e=>setNewShift({...newShift, endTime: e.target.value})} />
+                                 <label className="block text-xs font-medium text-slate-600 mb-1">Jam Pulang</label>
+                                 <input required type="time" className="w-full text-sm border-slate-300 rounded-lg bg-white text-slate-900" value={newShift.endTime} onChange={e=>setNewShift({...newShift, endTime: e.target.value})} />
                               </div>
                            </div>
                            <div className="flex items-start gap-2 bg-blue-50 p-3 rounded-lg border border-blue-100 text-blue-800 text-xs shadow-lg">
@@ -425,7 +425,7 @@ export default function Rostering() {
                        )}
 
                        <div>
-                         <label className="block text-xs font-medium text-slate-400 mb-2">Warna Visual Kelompok</label>
+                         <label className="block text-xs font-medium text-slate-600 mb-2">Warna Visual Kelompok</label>
                          <div className="flex flex-wrap gap-2">
                             {colors.map(c => (
                                <button 
@@ -439,14 +439,14 @@ export default function Rostering() {
                          </div>
                        </div>
                        
-                       <button type="submit" className="w-full bg-indigo-600 text-white font-medium text-sm py-2 rounded-lg hover:bg-indigo-700">Simpan Jam Shift</button>
+                       <button type="submit" className="w-full bg-blue-600 text-white font-medium text-sm py-2 rounded-lg hover:bg-indigo-700">Simpan Jam Shift</button>
                     </form>
                  </div>
 
                  {/* List */}
                  <div>
-                    <h4 className="font-semibold text-white mb-4">Daftar Shift Tersedia untuk {subDepts.find(s=>s.id === selectedSub)?.name}</h4>
-                    {shiftTypes.length === 0 ? <p className="text-sm text-slate-400">Belum ada jam shift dikonfigurasi.</p> : (
+                    <h4 className="font-semibold text-slate-900 mb-4">Daftar Shift Tersedia untuk {subDepts.find(s=>s.id === selectedSub)?.name}</h4>
+                    {shiftTypes.length === 0 ? <p className="text-sm text-slate-600">Belum ada jam shift dikonfigurasi.</p> : (
                        <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
                           {shiftTypes.map(st => (
                              <div key={st.id} className={`p-4 rounded-xl border flex items-center justify-between ${st.color}`}>
@@ -458,7 +458,7 @@ export default function Rostering() {
                                      <div className="text-xs opacity-80 mt-1">{st.startTime} - {st.endTime} {st.isCrossDay && '(Besoknya)'}</div>
                                    )}
                                 </div>
-                                <button onClick={()=>handleDeleteShift(st.id)} className="p-2 bg-[#0f172a]/50 hover:bg-[#0f172a]/80 rounded-lg text-rose-600"><Trash2 className="w-4 h-4"/></button>
+                                <button onClick={()=>handleDeleteShift(st.id)} className="p-2 bg-white/50 hover:bg-white/80 rounded-lg text-rose-600"><Trash2 className="w-4 h-4"/></button>
                              </div>
                           ))}
                        </div>
@@ -471,7 +471,7 @@ export default function Rostering() {
          {/* PATTERN TAB */}
          {activeTab === 'pattern' && (() => {
             // if shiftTypes empty
-            if (shiftTypes.length === 0) return <div className="mt-6 p-4 bg-amber-900/20 text-amber-400 rounded-lg">Harap buat "Jam Shift" terlebih dahulu di menu pertama.</div>;
+            if (shiftTypes.length === 0) return <div className="mt-6 p-4 bg-whitember-900/20 text-amber-400 rounded-lg">Harap buat "Jam Shift" terlebih dahulu di menu pertama.</div>;
 
             return (
               <div className="mt-6 space-y-6">
@@ -482,34 +482,34 @@ export default function Rostering() {
 
                  <div className="grid md:grid-cols-2 gap-8">
                     <div>
-                      <h4 className="font-bold text-white mb-4 block text-sm">Tambahkan Hari ke Pola</h4>
+                      <h4 className="font-bold text-slate-900 mb-4 block text-sm">Tambahkan Hari ke Pola</h4>
                       <div className="flex flex-col gap-2">
                          {shiftTypes.map(st => (
-                           <button key={st.id} type="button" onClick={()=>setLocalSeq([...localSeq, st.id])} className="w-full text-left p-3 rounded-lg border border-slate-800 hover:border-indigo-500 bg-[#0f172a] shadow-lg flex items-center justify-between">
+                           <button key={st.id} type="button" onClick={()=>setLocalSeq([...localSeq, st.id])} className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-indigo-500 bg-white shadow-lg flex items-center justify-between">
                              <div>
-                               <div className="font-bold text-sm text-white">{st.name}</div>
-                               <div className="text-xs text-slate-400">{st.isOffDay ? 'Libur' : `${st.startTime}-${st.endTime}`}</div>
+                               <div className="font-bold text-sm text-slate-900">{st.name}</div>
+                               <div className="text-xs text-slate-600">{st.isOffDay ? 'Libur' : `${st.startTime}-${st.endTime}`}</div>
                              </div>
-                             <Plus className="w-4 h-4 text-slate-400" />
+                             <Plus className="w-4 h-4 text-slate-600" />
                            </button>
                          ))}
                       </div>
                     </div>
 
                     <div>
-                      <h4 className="font-bold text-white mb-4 block text-sm">Susunan Pola Anda ({localSeq.length} Hari Berulang)</h4>
+                      <h4 className="font-bold text-slate-900 mb-4 block text-sm">Susunan Pola Anda ({localSeq.length} Hari Berulang)</h4>
                       
                       <div className="mb-4">
                          <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal Berlaku / Berjalan Pola Ini (Hari Ke-1)</label>
-                         <input type="date" value={localStart} onChange={(e)=>setLocalStart(e.target.value)} className="w-full text-sm border-slate-700 rounded-lg pb-2 pt-2 px-3 bg-[#0f172a] text-white"/>
+                         <input type="date" value={localStart} onChange={(e)=>setLocalStart(e.target.value)} className="w-full text-sm border-slate-300 rounded-lg pb-2 pt-2 px-3 bg-white text-slate-900"/>
                       </div>
 
-                      <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 min-h-[300px] flex flex-col gap-2">
-                         {localSeq.length === 0 && <div className="text-center text-sm text-slate-400 py-10">Pola masih kosong. Klik shift di sebelah kiri untuk menyusun pola.</div>}
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 min-h-[300px] flex flex-col gap-2">
+                         {localSeq.length === 0 && <div className="text-center text-sm text-slate-600 py-10">Pola masih kosong. Klik shift di sebelah kiri untuk menyusun pola.</div>}
                          {localSeq.map((shiftId, index) => {
                             const detail = shiftTypes.find(s => s.id === shiftId);
                             return (
-                               <div key={`${index}-${shiftId}`} className={`flex items-center justify-between p-3 rounded-lg border shadow-lg ${detail?.color || 'bg-[#0f172a] text-white'}`}>
+                               <div key={`${index}-${shiftId}`} className={`flex items-center justify-between p-3 rounded-lg border shadow-lg ${detail?.color || 'bg-white text-slate-900'}`}>
                                   <div className="flex items-center gap-3">
                                      <span className="font-mono text-xs opacity-50 w-5">H{index+1}</span>
                                      <div className="font-bold text-sm">{detail?.name || 'Shift Dihapus'}</div>
@@ -520,7 +520,7 @@ export default function Rostering() {
                          })}
                       </div>
 
-                      <button onClick={()=>handlePatternChange(localSeq, localStart)} className="w-full mt-4 bg-slate-800 text-white font-bold text-sm py-3 rounded-xl hover:bg-slate-700 flex items-center justify-center gap-2">
+                      <button onClick={()=>handlePatternChange(localSeq, localStart)} className="w-full mt-4 bg-slate-100 text-slate-900 font-bold text-sm py-3 rounded-xl hover:bg-slate-200 flex items-center justify-center gap-2">
                          <Repeat className="w-4 h-4"/> Konfirmasi & Simpan Rotasi Pola
                       </button>
                     </div>
@@ -535,8 +535,8 @@ export default function Rostering() {
               <div className="flex flex-col md:flex-row gap-4 mb-6">
                 <div className="flex-1 w-full flex items-center gap-2">
                   <div>
-                    <label className="text-sm font-medium text-slate-300 mb-1 block">Bulan View</label>
-                    <select value={month} onChange={e => setMonth(e.target.value)} className="w-full border-slate-700 rounded-lg shadow-lg bg-[#0f172a] text-white">
+                    <label className="text-sm font-medium text-slate-700 mb-1 block">Bulan View</label>
+                    <select value={month} onChange={e => setMonth(e.target.value)} className="w-full border-slate-300 rounded-lg shadow-lg bg-white text-slate-900">
                       {Array.from({length: 12}).map((_, i) => {
                          const m = (i + 1).toString().padStart(2, '0');
                          return <option key={m} value={m}>{format(new Date(2000, i, 1), 'MMMM')}</option>
@@ -544,12 +544,12 @@ export default function Rostering() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-slate-300 mb-1 block">Tahun</label>
-                    <input type="number" value={year} onChange={e => setYear(e.target.value)} className="w-32 border-slate-700 rounded-lg shadow-lg bg-[#0f172a] text-white" />
+                    <label className="text-sm font-medium text-slate-700 mb-1 block">Tahun</label>
+                    <input type="number" value={year} onChange={e => setYear(e.target.value)} className="w-32 border-slate-300 rounded-lg shadow-lg bg-white text-slate-900" />
                   </div>
                 </div>
                 <div className="flex items-end">
-                  <button onClick={handleExport} className="flex items-center gap-2 bg-green-900/20 text-green-400 px-4 py-2 h-10 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors">
+                  <button onClick={handleExport} className="flex items-center gap-2 bg-green-900/20 text-green-700 px-4 py-2 h-10 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors">
                     <Download className="w-4 h-4" /> Export Excel
                   </button>
                   <button onClick={handlePushToApp} disabled={loading} className="flex items-center gap-2 bg-indigo-900/20 text-indigo-400 px-4 py-2 h-10 rounded-lg text-sm font-bold hover:bg-indigo-100 transition-colors disabled:opacity-50">
@@ -559,28 +559,28 @@ export default function Rostering() {
               </div>
 
               {!pattern ? (
-                 <div className="p-10 text-center text-slate-400 bg-[#111827] border border-slate-800 rounded-xl border-dashed">
+                 <div className="p-10 text-center text-slate-600 bg-slate-50 border border-slate-200 rounded-xl border-dashed">
                     Pola (Pattern) rotasi belum di-define untuk regu ini. Harap atur di kolom ke-2.
                  </div>
               ) : (
-                <div className="border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-lg">
                    <div className="overflow-x-auto">
                      <table className="w-full text-left text-sm whitespace-nowrap">
-                       <thead className="bg-[#111827] text-slate-300 border-b border-slate-800">
+                       <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
                          <tr>
-                           <th className="px-6 py-4 font-bold w-48 border-r border-slate-800">Tanggal</th>
+                           <th className="px-6 py-4 font-bold w-48 border-r border-slate-200">Tanggal</th>
                            <th className="px-6 py-4 font-bold">Shift Generasi Sistem</th>
                            <th className="px-6 py-4 font-bold">Override / Pengecualian?</th>
                          </tr>
                        </thead>
-                       <tbody className="divide-y divide-slate-800 bg-[#0f172a]">
+                       <tbody className="divide-y divide-slate-200 bg-white">
                          {getDaysInMonth().map(dateStr => {
                             const isOverriden = !!schedules[dateStr];
                             const sVal = getShiftForDate(dateStr);
                             
                             return (
-                               <tr key={dateStr} className={`hover:bg-[#111827] ${isOverriden ? 'bg-amber-900/20/30' : ''}`}>
-                                 <td className="px-6 py-4 border-r border-slate-800 text-white font-medium">
+                               <tr key={dateStr} className={`hover:bg-slate-50 ${isOverriden ? 'bg-whitember-900/20/30' : ''}`}>
+                                 <td className="px-6 py-4 border-r border-slate-200 text-slate-900 font-medium">
                                    {format(new Date(dateStr), 'EEEE, dd MMM yyyy')}
                                    {isOverriden && <div className="text-[10px] text-amber-600 font-bold tracking-wider mt-1">(DI-REVISI MANUAL)</div>}
                                  </td>
@@ -590,7 +590,7 @@ export default function Rostering() {
                                           <div className="font-bold">{sVal.name}</div>
                                           {!sVal.isOffDay && <div className="opacity-80 text-xs px-2 border-l border-current"> {sVal.startTime} - {sVal.endTime} {sVal.isCrossDay&&'(+1)'}</div>}
                                         </div>
-                                     ) : <span className="text-slate-400 italic">Belum mencapai tanggal pola</span>}
+                                     ) : <span className="text-slate-600 italic">Belum mencapai tanggal pola</span>}
                                  </td>
                                  <td className="px-6 py-4">
                                     <div className="flex items-center gap-2">
@@ -603,7 +603,7 @@ export default function Rostering() {
                                                clearOverride(dateStr)
                                             }
                                          }}
-                                         className="border-slate-700 text-sm rounded-lg py-1.5 px-3 min-w-[150px] bg-[#0f172a] text-white"
+                                         className="border-slate-300 text-sm rounded-lg py-1.5 px-3 min-w-[150px] bg-white text-slate-900"
                                       >
                                          <option value="">Ikuti Pola</option>
                                          <optgroup label="Ubah ke / Set Ke:">

@@ -267,6 +267,138 @@
         }
       },
       "required": ["key", "content", "updatedAt"]
+    },
+    "WorkReport": {
+      "title": "Work Report",
+      "description": "Work reports submitted by employees.",
+      "type": "object",
+      "properties": {
+        "employeeId": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "photoUrl": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": ["employeeId", "date", "description"]
+    },
+    "Gallery": {
+      "title": "Gallery",
+      "description": "Corporate gallery and media files.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "mediaUrl": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": ["mediaUrl", "createdAt"]
+    },
+    "Agenda": {
+      "title": "Agenda",
+      "description": "Corporate agendas and event calendar.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": ["title", "date", "type", "createdAt"]
+    },
+    "ShiftType": {
+      "title": "Shift Type",
+      "description": "Shift type configurations.",
+      "type": "object",
+      "properties": {
+        "subDepartmentId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "startTime": {
+          "type": "string"
+        },
+        "endTime": {
+          "type": "string"
+        },
+        "isCrossDay": {
+          "type": "boolean"
+        },
+        "isOffDay": {
+          "type": "boolean"
+        },
+        "color": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": ["subDepartmentId", "name", "startTime", "endTime"]
+    },
+    "ShiftPattern": {
+      "title": "Shift Pattern",
+      "description": "Weekly / monthly roster pattern rotation.",
+      "type": "object",
+      "properties": {
+        "subDepartmentId": {
+          "type": "string"
+        },
+        "startDate": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "array"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["subDepartmentId", "startDate", "sequence"]
+    },
+    "SubdeptScheduleOverride": {
+      "title": "Subdept Schedule Override",
+      "description": "Overrides to regular roster patterns.",
+      "type": "object",
+      "properties": {
+        "subDepartmentId": {
+          "type": "string"
+        },
+        "overrideDate": {
+          "type": "string"
+        },
+        "shiftTypeId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["subDepartmentId", "overrideDate"]
     }
   },
   "firestore": {
@@ -335,6 +467,42 @@
         "$ref": "#/entities/CompanyInfo"
       },
       "description": "Public company profile."
+    },
+    "work_reports/{reportId}": {
+      "schema": {
+        "$ref": "#/entities/WorkReport"
+      },
+      "description": "Work reports submitted by employees."
+    },
+    "galleries/{galleryId}": {
+      "schema": {
+        "$ref": "#/entities/Gallery"
+      },
+      "description": "Corporate gallery and media files."
+    },
+    "agendas/{agendaId}": {
+      "schema": {
+        "$ref": "#/entities/Agenda"
+      },
+      "description": "Corporate agendas and event calendar."
+    },
+    "shift_types/{shiftTypeId}": {
+      "schema": {
+        "$ref": "#/entities/ShiftType"
+      },
+      "description": "Shift type configurations."
+    },
+    "shift_patterns/{patternId}": {
+      "schema": {
+        "$ref": "#/entities/ShiftPattern"
+      },
+      "description": "Weekly / monthly roster pattern rotation."
+    },
+    "subdept_schedule_overrides/{overrideId}": {
+      "schema": {
+        "$ref": "#/entities/SubdeptScheduleOverride"
+      },
+      "description": "Overrides to regular roster patterns."
     }
   }
 }

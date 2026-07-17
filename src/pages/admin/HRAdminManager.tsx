@@ -69,17 +69,17 @@ export default function HRAdminManager() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <Shield className="w-6 h-6 text-indigo-500" />
           Manajemen Akun HRD System
         </h2>
-        <p className="text-slate-400">Daftarkan Email Google staff HRD untuk memberikan mereka akses login via Google.</p>
+        <p className="text-slate-600">Daftarkan Email Google staff HRD untuk memberikan mereka akses login via Google.</p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
         
-        <div className="lg:col-span-1 bg-[#0f172a] p-6 rounded-2xl shadow-lg border border-slate-800">
-          <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+        <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
+          <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-indigo-900/200/10 flex items-center justify-center border border-indigo-500/20">
               <UserPlus className="w-4 h-4 text-indigo-500" />
             </div>
@@ -87,32 +87,32 @@ export default function HRAdminManager() {
           </h3>
           <form onSubmit={handleAddAdmin} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Nama Lengkap</label>
-              <input required type="text" className="w-full text-sm bg-[#0f172a] text-white placeholder-slate-500 rounded-lg border border-slate-700 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} placeholder="Contoh: Budi Santoso" />
+              <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Nama Lengkap</label>
+              <input required type="text" className="w-full text-sm bg-white text-slate-900 placeholder-slate-500 rounded-lg border border-slate-300 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} placeholder="Contoh: Budi Santoso" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Email Akun HRD</label>
-              <input required type="email" className="w-full text-sm bg-[#0f172a] text-white placeholder-slate-500 rounded-lg border border-slate-700 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" value={form.email} onChange={e=>setForm({...form, email: e.target.value})} placeholder="staff@perusahaan.com" />
+              <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Email Akun HRD</label>
+              <input required type="email" className="w-full text-sm bg-white text-slate-900 placeholder-slate-500 rounded-lg border border-slate-300 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" value={form.email} onChange={e=>setForm({...form, email: e.target.value})} placeholder="staff@perusahaan.com" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Password Login</label>
-              <input required type="text" className="w-full text-sm bg-[#0f172a] text-white placeholder-slate-500 rounded-lg border border-slate-700 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" value={form.password} onChange={e=>setForm({...form, password: e.target.value})} placeholder="Minimal 6 karakter" />
+              <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Password Login</label>
+              <input required type="text" className="w-full text-sm bg-white text-slate-900 placeholder-slate-500 rounded-lg border border-slate-300 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" value={form.password} onChange={e=>setForm({...form, password: e.target.value})} placeholder="Minimal 6 karakter" />
             </div>
 
-            <button disabled={loading} type="submit" className="w-full bg-indigo-600 hover:bg-indigo-900/200 text-white text-sm font-bold py-3 rounded-xl transition-colors mt-4">
+            <button disabled={loading} type="submit" className="w-full bg-indigo-600 hover:bg-indigo-900/200 text-slate-900 text-sm font-bold py-3 rounded-xl transition-colors mt-4">
               {loading ? 'Memproses...' : 'Daftarkan Email'}
             </button>
           </form>
         </div>
 
-        <div className="lg:col-span-2 bg-[#0f172a] p-6 rounded-2xl shadow-lg border border-slate-800">
-           <h3 className="text-lg font-bold text-white mb-6">Daftar Akun Pengurus HRD Terdaftar</h3>
+        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
+           <h3 className="text-lg font-bold text-slate-900 mb-6">Daftar Akun Pengurus HRD Terdaftar</h3>
            <div className="space-y-3">
              {admins.map((admin) => (
-                <div key={admin.id} className="p-4 bg-[#111827] rounded-xl border border-slate-800 flex justify-between items-center group hover:border-slate-700 transition-colors">
+                <div key={admin.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center group hover:border-slate-300 transition-colors">
                   <div>
-                    <div className="font-bold text-sm text-white">{admin.name || 'Anonymous Admin'}</div>
-                    <div className="text-[10px] font-semibold tracking-wider text-slate-400 mt-1 uppercase">Login Email: {admin.email || admin.id}</div>
+                    <div className="font-bold text-sm text-slate-900">{admin.name || 'Anonymous Admin'}</div>
+                    <div className="text-[10px] font-semibold tracking-wider text-slate-600 mt-1 uppercase">Login Email: {admin.email || admin.id}</div>
                   </div>
                   <button onClick={() => handleDelete(admin.id, admin.email)} className="text-rose-500 p-2 hover:bg-rose-500/10 rounded-lg transition-colors">
                     <Trash2 className="w-4 h-4"/>
@@ -120,7 +120,7 @@ export default function HRAdminManager() {
                 </div>
              ))}
              {admins.length === 0 && (
-               <div className="text-center py-10 text-slate-400 border border-slate-800 border-dashed rounded-xl">Belum ada HRD tambahan yang terdaftar.</div>
+               <div className="text-center py-10 text-slate-600 border border-slate-200 border-dashed rounded-xl">Belum ada HRD tambahan yang terdaftar.</div>
              )}
            </div>
         </div>

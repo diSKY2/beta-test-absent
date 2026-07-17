@@ -46,6 +46,7 @@ export const employees = pgTable('employees', {
   baseSalary: decimal('base_salary', { precision: 15, scale: 2 }).notNull(),
   role: varchar('role', { length: 100 }).notNull(),
   profilePicUrl: text('profile_pic_url'),
+  status: varchar('status', { length: 50 }).default('Aktif'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -151,6 +152,8 @@ export const announcements = pgTable('announcements', {
   title: varchar('title', { length: 255 }).notNull(),
   content: text('content').notNull(),
   type: varchar('type', { length: 100 }).notNull(),
+  mediaUrl: text('media_url'),
+  isPopup: boolean('is_popup').default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -177,3 +180,12 @@ export const galleries = pgTable('galleries', {
   mediaUrl: text('media_url').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const agendas = pgTable('agendas', {
+  id: varchar('id', { length: 50 }).primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  date: varchar('date', { length: 255 }).notNull(),
+  type: varchar('type', { length: 100 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
