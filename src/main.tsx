@@ -11,7 +11,7 @@ if ((window as any).Capacitor && (window as any).Capacitor.isNativePlatform()) {
     let url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     
     if (url.startsWith('/api')) {
-      url = `https://gtp.alverse.qzz.io${url}`;
+      url = ('baseurl`)${url}`;
       if (typeof input === 'string') {
         input = url;
       } else if (input instanceof Request) {
