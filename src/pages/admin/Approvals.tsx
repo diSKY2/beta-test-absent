@@ -60,7 +60,21 @@ export default function Approvals() {
       const req = leaves.find(l => l.id === id);
       
       if (req && action === 'Approved') {
-         const attId = `${req.employeeId}_${req.requestDate}`;
+         // Extract only YYYY-MM-DD to avoid exceeding database varchar(50) limit on ID
+         let datePart = '';
+         if (typeof req.requestDate === 'string') {
+           datePart = req.requestDate.split('T')[0];
+         } else if (typeof req.requestDate === 'number') {
+           datePart = new Date(req.requestDate).toISOString().split('T')[0];
+         } else if (req.requestDate && typeof (req.requestDate as any).toDate === 'function') {
+           datePart = (req.requestDate as any).toDate().toISOString().split('T')[0];
+         } else if (req.requestDate instanceof Date) {
+           datePart = req.requestDate.toISOString().split('T')[0];
+         } else {
+           datePart = new Date().toISOString().split('T')[0];
+         }
+
+         const attId = `${req.employeeId}_${datePart}`;
          await setDoc(doc(db, 'attendances', attId), {
             employeeId: req.employeeId,
             attendanceDate: req.requestDate,
