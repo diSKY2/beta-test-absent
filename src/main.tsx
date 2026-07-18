@@ -1,3 +1,4 @@
+import { defineCustomElements } from '@ionic/pwa-elements/loader';
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
@@ -11,7 +12,7 @@ if ((window as any).Capacitor && (window as any).Capacitor.isNativePlatform()) {
     let url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     
     if (url.startsWith('/api')) {
-      url = ('baseurl`)${url}`;
+      url = `https://garudatrisulaperkasa.web.id${url}`;
       if (typeof input === 'string') {
         input = url;
       } else if (input instanceof Request) {
@@ -24,6 +25,8 @@ if ((window as any).Capacitor && (window as any).Capacitor.isNativePlatform()) {
     return originalFetch(input, init);
   };
 }
+
+defineCustomElements(window);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

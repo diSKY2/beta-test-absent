@@ -60,10 +60,10 @@ export default function Approvals() {
       const req = leaves.find(l => l.id === id);
       
       if (req && action === 'Approved') {
-         const attId = `${req.employeeId}_${req.date}`;
+         const attId = `${req.employeeId}_${req.requestDate}`;
          await setDoc(doc(db, 'attendances', attId), {
             employeeId: req.employeeId,
-            date: req.date,
+            attendanceDate: req.requestDate,
             status: req.type, // 'Sakit' or 'Izin'
             type: 'Leave',
             reason: req.reason,
@@ -100,7 +100,7 @@ export default function Approvals() {
           'ID Pegawai': r.employeeId,
           'Nama Pegawai': employeesMap[r.employeeId] || '-',
           'Tipe': r.type,
-          'Tanggal': r.date,
+          'Tanggal': r.requestDate,
           'Alasan': r.reason,
           'Status': r.status,
           'Waktu Persetujuan': r.updatedAt ? new Date(r.updatedAt).toLocaleString() : '-'
@@ -113,7 +113,7 @@ export default function Approvals() {
           'ID Pegawai': r.employeeId,
           'Nama Pegawai': employeesMap[r.employeeId] || '-',
           'Jam Lembur': r.hours,
-          'Tanggal': r.date,
+          'Tanggal': r.requestDate,
           'Alasan': r.reason,
           'Status': r.status,
           'Waktu Persetujuan': r.updatedAt ? new Date(r.updatedAt).toLocaleString() : '-'
@@ -180,7 +180,10 @@ export default function Approvals() {
                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${req.type === 'Sakit' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>
                            {req.type}
                          </span>
-                         <span className="text-sm text-slate-600">• {req.date}</span>
+                         <span className="text-sm text-slate-600">• {req.requestDate}</span>
+                         <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-bold bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                           Menunggu
+                         </span>
                       </div>
                       <p className="text-sm text-slate-700">{req.reason}</p>
                       {req.photoUrl && (
@@ -220,7 +223,10 @@ export default function Approvals() {
                          <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full font-medium">
                            {req.hours} Jam
                          </span>
-                         <span className="text-sm text-slate-600">• {req.date}</span>
+                         <span className="text-sm text-slate-600">• {req.requestDate}</span>
+                         <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-bold bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                           Menunggu
+                         </span>
                       </div>
                       <p className="text-sm text-slate-700">{req.reason}</p>
                     </div>
@@ -279,7 +285,7 @@ export default function Approvals() {
                       <div>
                          <div className="flex items-center gap-2 mb-1">
                             <span className="font-bold text-slate-900 text-sm">{employeesMap[req.employeeId] || req.employeeId}</span>
-                            <span className="text-slate-600 text-xs">• {req.date}</span>
+                            <span className="text-slate-600 text-xs">• {req.requestDate}</span>
                          </div>
                          <p className="text-slate-600 text-xs line-clamp-1">{req.type}: {req.reason}</p>
                          {req.photoUrl && (
@@ -306,7 +312,7 @@ export default function Approvals() {
                       <div>
                          <div className="flex items-center gap-2 mb-1">
                             <span className="font-bold text-slate-900 text-sm">{employeesMap[req.employeeId] || req.employeeId}</span>
-                            <span className="text-slate-500 text-xs">• {req.date}</span>
+                            <span className="text-slate-500 text-xs">• {req.requestDate}</span>
                          </div>
                          <p className="text-slate-600 text-xs line-clamp-1">{req.hours} Jam: {req.reason}</p>
                       </div>

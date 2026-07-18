@@ -172,6 +172,75 @@ apiRouter.post('/employee/login', async (req, res) => {
   }
 });
 
+import { shiftTypes, shiftPatterns, subdeptScheduleOverrides, attendances, leaveRequests, overtimeRequests, workReports, announcements } from '../src/db/schema';
+
+apiRouter.post('/employee/dashboard-data', async (req, res) => {
+  try {
+    const { employeeId, subDepartmentId, isLeader, isSoftRefresh } = req.body;
+    
+    // Refresh employee to check status
+    const empResult = await db.select().from(employees).where(eq(employees.id, employeeId));
+    if (empResult.length === 0) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+    const empUser = empResult[0];
+
+    // Queries to run in parallel
+    const queries = [];
+    
+    // Always fetch volatile data
+    queries.push(db.select().from(attendances).where(eq(attendances.employeeId, employeeId)));
+    queries.push(db.select().from(leaveRequests).where(eq(leaveRequests.employeeId, employeeId)));
+    queries.push(db.select().from(overtimeRequests).where(eq(overtimeRequests.employeeId, employeeId)));
+    queries.push(db.select().from(workReports).where(eq(workReports.employeeId, employeeId)));
+    
+    if (isLeader) {
+       queries.push(db.select().from(attendances)); // team attendances
+    } else {
+       queries.push(Promise.resolve([]));
+    }
+
+    // Optionally fetch static data
+    if (!isSoftRefresh) {
+      queries.push(db.select().from(locations));
+      queries.push(db.select().from(shiftTypes).where(eq(shiftTypes.subDepartmentId, subDepartmentId)));
+      queries.push(db.select().from(shiftPatterns).where(eq(shiftPatterns.subDepartmentId, subDepartmentId)));
+      queries.push(db.select().from(subdeptScheduleOverrides).where(eq(subdeptScheduleOverrides.subDepartmentId, subDepartmentId)));
+      queries.push(db.select().from(announcements));
+      
+      if (isLeader) {
+        queries.push(db.select().from(employees).where(eq(employees.subDepartmentId, subDepartmentId)));
+      } else {
+        queries.push(Promise.resolve([]));
+      }
+    }
+
+    const results = await Promise.all(queries);
+    
+    const response: any = {
+      employee: empUser,
+      attendances: results[0],
+      leaveRequests: results[1],
+      overtimeRequests: results[2],
+      workReports: results[3],
+      teamAttendances: results[4]
+    };
+
+    if (!isSoftRefresh) {
+      response.locations = results[5];
+      response.shiftTypes = results[6];
+      response.shiftPatterns = results[7];
+      response.overrides = results[8];
+      response.announcements = results[9];
+      response.teamEmployees = results[10];
+    }
+
+    res.json(response);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 apiRouter.post('/admin/register', async (req, res) => {
   try {
     const { email, password, name } = req.body;

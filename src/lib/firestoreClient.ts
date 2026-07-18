@@ -2,6 +2,9 @@ import { initializeApp as realInitializeApp } from "firebase/app";
 import { getFirestore as realGetFirestore, collection as realFbCollection, doc as realFbDoc, setDoc as realFbSetDoc, addDoc as realFbAddDoc, updateDoc as realFbUpdateDoc, deleteDoc as realFbDeleteDoc, writeBatch as realFbWriteBatch, getDocs as realFbGetDocs } from "firebase/firestore";
 import firebaseConfigData from '../../firebase-applet-config.json';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
+
 const realApp = realInitializeApp(firebaseConfigData);
 const realDb = realGetFirestore(realApp, firebaseConfigData.firestoreDatabaseId || "(default)");
 
@@ -58,7 +61,7 @@ export async function getDocs(queryObj: any) {
     queries: queryObj.queries || [],
     order: queryObj.orders || []
   };
-  const res = await fetch('/api/sql/rpc', {
+  const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(reqBody)
@@ -78,7 +81,7 @@ export async function getDocs(queryObj: any) {
 }
 
 export async function addDoc(col: any, data: any) {
-  const res = await fetch('/api/sql/rpc', {
+  const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'addDoc', collection: col.name, data })
@@ -98,7 +101,7 @@ export async function addDoc(col: any, data: any) {
 }
 
 export async function batchSetDocs(collectionName: string, docs: { id: string, data: any }[]) {
-  const res = await fetch('/api/sql/rpc', {
+  const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'batchSetDocs', collection: collectionName, docs })
@@ -119,7 +122,7 @@ export async function batchSetDocs(collectionName: string, docs: { id: string, d
   return parsedResponse;
 }
 export async function setDoc(docObj: any, data: any, options?: any) {
-  const res = await fetch('/api/sql/rpc', {
+  const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'setDoc', collection: docObj.name, docId: docObj.id, data, options })
@@ -137,7 +140,7 @@ export async function setDoc(docObj: any, data: any, options?: any) {
 }
 
 export async function updateDoc(docObj: any, data: any) {
-  const res = await fetch('/api/sql/rpc', {
+  const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'updateDoc', collection: docObj.name, docId: docObj.id, data })
@@ -155,7 +158,7 @@ export async function updateDoc(docObj: any, data: any) {
 }
 
 export async function deleteDoc(docObj: any) {
-  const res = await fetch('/api/sql/rpc', {
+  const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'deleteDoc', collection: docObj.name, docId: docObj.id })

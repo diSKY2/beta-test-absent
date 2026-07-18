@@ -3,6 +3,9 @@ import { useNavigate, Link } from 'react-router';
 import { ArrowLeft, Lock, Mail, KeyRound, ShieldAlert } from 'lucide-react';
 import { motion } from 'motion/react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://garudatrisulaperkasa.web.id";
+
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,7 +21,7 @@ export default function LoginPage() {
     try {
       const trimmedEmail = email.trim().toLowerCase();
       
-      const response = await fetch('/api/admin/login', {
+      const response = await fetch(API_BASE_URL + '/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail, password })
@@ -28,7 +31,7 @@ export default function LoginPage() {
       
       if (!response.ok) {
         if (data.error === 'Kredensial tidak valid' && trimmedEmail === 'admin@perusahaan.com' && password === 'admin123') {
-           const regResponse = await fetch('/api/admin/register', {
+           const regResponse = await fetch(API_BASE_URL + '/api/admin/register', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({ email: trimmedEmail, password, name: 'Admin Perusahaan' })
@@ -179,13 +182,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Access Aid */}
-          <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl text-center space-y-1">
-            <p className="text-[10px] text-blue-700 font-mono font-bold tracking-wider">DEMO_ADMIN_ENVIRONMENT</p>
-            <p className="text-[10px] text-slate-600 font-mono">
-              Email: <span className="text-slate-900 font-bold">admin@perusahaan.com</span> • Sandi: <span className="text-slate-900 font-bold">admin123</span>
-            </p>
-          </div>
+
 
         </div>
       </div>

@@ -52,8 +52,14 @@ genericDbRouter.post('/rpc', async (req, res) => {
           const operator = f.op || f.operator;
           const val = f.value !== undefined ? f.value : f.val;
           if (table[fieldName]) {
-            if (operator === '==') return eq(table[fieldName], val);
-            if (operator === 'in') return inArray(table[fieldName], val);
+            let finalVal = val;
+            const dateKeyRegex = /^(createdAt|updatedAt|startDate|overrideDate|scheduleDate|attendanceDate|requestDate|date)$/;
+            if (dateKeyRegex.test(fieldName)) {
+               if (typeof val === 'string') finalVal = new Date(val);
+               else if (Array.isArray(val)) finalVal = val.map(v => typeof v === 'string' ? new Date(v) : v);
+            }
+            if (operator === '==') return eq(table[fieldName], finalVal);
+            if (operator === 'in') return inArray(table[fieldName], finalVal);
             if (operator === '>=') {
                // Assuming it's a date or timestamp if it's compared with >=
                return sql`${table[fieldName]} >= ${val}`;

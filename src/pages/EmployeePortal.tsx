@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { 
@@ -10,6 +11,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
 import { LocalNotifications } from '@capacitor/local-notifications';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://garudatrisulaperkasa.web.id";
+
 
 // Interfaces matching PostgreSQL Schema
 interface Employee {
@@ -98,6 +102,8 @@ export default function EmployeePortal() {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isSubmittingLeave, setIsSubmittingLeave] = useState(false);
+  const [isSubmittingOvertime, setIsSubmittingOvertime] = useState(false);
   const [activeToast, setActiveToast] = useState<string | null>(null);
   
   // App States
@@ -134,6 +140,7 @@ export default function EmployeePortal() {
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
   const [selectedGroupMemberId, setSelectedGroupMemberId] = useState<string>('');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const staticDataFetched = useRef(false);
 
   const isKetua = !!(currentEmployee?.role && (
     currentEmployee.role.toLowerCase().includes('ketua') || 
@@ -151,7 +158,7 @@ export default function EmployeePortal() {
         docId: attendanceId
       };
 
-      const res = await fetch('/api/sql/rpc', {
+      const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -159,7 +166,13 @@ export default function EmployeePortal() {
 
       if (res.ok) {
         triggerToast(`Berhasil membatalkan absensi anggota.`);
-        await fetchEmployeeResources();
+        
+        // Targeted local state update
+        setTeamAttendances(prev => prev.filter((a: any) => a.id !== attendanceId));
+        setAttendancesHistory(prev => prev.filter((a: any) => a.id !== attendanceId));
+        if (todayAttendance?.id === attendanceId) {
+           setTodayAttendance(null);
+        }
       } else {
         const err = await res.json();
         alert('Gagal: ' + err.error);
@@ -389,188 +402,151 @@ export default function EmployeePortal() {
     }
   }, [isLoggedIn, currentEmployee?.id]);
 
-  const fetchEmployeeResources = async () => {
+  const fetchEmployeeResources = async (isSoftRefresh = false) => {
     if (!currentEmployee) return;
     try {
-      // 0. Refresh current logged-in employee status to detect deactivation instantly
-      try {
-        const selfRes = await fetch('/api/sql/rpc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'getDoc',
-            collection: 'employees',
-            docId: currentEmployee.id
-          })
-        });
-        if (selfRes.ok) {
-          const freshEmp = await selfRes.json();
-          if (freshEmp && freshEmp.id) {
-            setCurrentEmployee(freshEmp);
-            localStorage.setItem('employeeSession', JSON.stringify(freshEmp));
-            if (freshEmp.status && freshEmp.status !== 'Aktif') {
-              // Immediately stop loading other resources as the account is deactivated
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Error auto-refreshing employee status:', e);
-      }
+      const shouldFetchStatic = !isSoftRefresh || !staticDataFetched.current;
+      const isLeader = !!(currentEmployee.role && (currentEmployee.role.toLowerCase().includes('ketua') || currentEmployee.role.toLowerCase().includes('leader') || currentEmployee.role.toLowerCase().includes('danru')));
 
-      // 1. Fetch Locations to check geofence
-      const locRes = await fetch('/api/locations');
-      if (locRes.ok) {
-        const locData = await locRes.json();
-        setAllLocations(locData);
-        const myLoc = locData.find((l: Location) => l.id === currentEmployee.locationId);
-        if (myLoc) setOfficeLocation(myLoc);
-      }
-
-      // 2. Fetch shift types, patterns, and overrides to compute a dynamic 7-day schedule
-      const [typesRes, patternRes, overridesRes] = await Promise.all([
-        fetch('/api/sql/rpc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'getDocs',
-            collection: 'shift_types',
-            filters: [{ field: 'subDepartmentId', operator: '==', value: currentEmployee.subDepartmentId }]
-          })
-        }),
-        fetch('/api/sql/rpc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'getDocs',
-            collection: 'shift_patterns',
-            filters: [{ field: 'subDepartmentId', operator: '==', value: currentEmployee.subDepartmentId }]
-          })
-        }),
-        fetch('/api/sql/rpc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'getDocs',
-            collection: 'subdept_schedule_overrides',
-            filters: [{ field: 'subDepartmentId', operator: '==', value: currentEmployee.subDepartmentId }]
-          })
-        })
-      ]);
-
-      let shiftTypes: any[] = [];
-      let pattern: any = null;
-      let overrides: any[] = [];
-
-      if (typesRes.ok) shiftTypes = await typesRes.json();
-      if (patternRes.ok) {
-        const patterns = await patternRes.json();
-        if (patterns.length > 0) pattern = patterns[0];
-      }
-      if (overridesRes.ok) overrides = await overridesRes.json();
-
-      const formatTimeStr = (tStr: string) => {
-        if (!tStr) return "08:00";
-        if (tStr.includes('T')) {
-          const parts = tStr.split('T')[1];
-          if (parts) return parts.substring(0, 5);
-        }
-        return tStr.substring(0, 5);
-      };
-
-      // Generate 7 days starting from today (dynamic future schedule)
-      const computedSchedules: Schedule[] = [];
-      const today = new Date();
-
-      for (let i = 0; i < 7; i++) {
-        const targetDate = new Date();
-        targetDate.setDate(today.getDate() + i);
-
-        // Format as YYYY-MM-DD for checking overrides
-        const yyyy = targetDate.getFullYear();
-        const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(targetDate.getDate()).padStart(2, '0');
-        const dateStr = `${yyyy}-${mm}-${dd}`;
-
-        // Find if there is an override for this date
-        const override = overrides.find((o: any) => {
-          const oDate = new Date(o.overrideDate);
-          const oY = oDate.getFullYear();
-          const oM = String(oDate.getMonth() + 1).padStart(2, '0');
-          const oD = String(oDate.getDate()).padStart(2, '0');
-          return `${oY}-${oM}-${oD}` === dateStr;
-        });
-
-        let activeShift: any = null;
-        if (override) {
-          activeShift = shiftTypes.find((s: any) => s.id === override.shiftTypeId);
-        }
-
-        // If no override, calculate from shift pattern
-        if (!activeShift && pattern && pattern.sequence && pattern.sequence.length > 0) {
-          const pDate = new Date(pattern.startDate);
-
-          // Calculate difference in calendar days
-          const tDateReset = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-          const pDateReset = new Date(pDate.getFullYear(), pDate.getMonth(), pDate.getDate());
-          const diffTime = tDateReset.getTime() - pDateReset.getTime();
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-          if (diffDays >= 0) {
-            const index = diffDays % pattern.sequence.length;
-            const shiftId = pattern.sequence[index];
-            activeShift = shiftTypes.find((s: any) => s.id === shiftId);
-          }
-        }
-
-        // Fallback if no pattern or shift found
-        if (!activeShift) {
-          const defaultShifts = [
-            { name: 'SHIFT PAGI', start: '08:00', end: '16:00', off: false },
-            { name: 'SHIFT PAGI', start: '08:00', end: '16:00', off: false },
-            { name: 'SHIFT SIANG', start: '16:00', end: '24:00', off: false },
-            { name: 'SHIFT SIANG', start: '16:00', end: '24:00', off: false },
-            { name: 'SHIFT MALAM', start: '00:00', end: '08:00', off: false },
-            { name: 'SHIFT MALAM', start: '00:00', end: '08:00', off: false },
-            { name: 'LIBUR MINGGUAN', start: 'Libur', end: 'Libur', off: true },
-          ];
-          const fallback = defaultShifts[i % 7];
-          computedSchedules.push({
-            id: `fallback-${dateStr}`,
-            employeeId: currentEmployee.id,
-            date: targetDate.toISOString(),
-            shiftName: fallback.name,
-            shiftStart: fallback.start,
-            shiftEnd: fallback.end,
-            isOffDay: fallback.off
-          });
-        } else {
-          computedSchedules.push({
-            id: `computed-${dateStr}`,
-            employeeId: currentEmployee.id,
-            date: targetDate.toISOString(),
-            shiftName: activeShift.name,
-            shiftStart: activeShift.isOffDay ? "Libur" : formatTimeStr(activeShift.startTime),
-            shiftEnd: activeShift.isOffDay ? "Libur" : formatTimeStr(activeShift.endTime),
-            isOffDay: activeShift.isOffDay
-          });
-        }
-      }
-
-      setSchedulesList(computedSchedules);
-
-      // 3. Fetch today's attendance state
-      const attRes = await fetch('/api/sql/rpc', {
+      const res = await fetch(API_BASE_URL + '/api/employee/dashboard-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'getDocs',
-          collection: 'attendances',
-          filters: [{ field: 'employeeId', operator: '==', value: currentEmployee.id }]
+          employeeId: currentEmployee.id,
+          subDepartmentId: currentEmployee.subDepartmentId,
+          isLeader,
+          isSoftRefresh: !shouldFetchStatic
         })
       });
-      if (attRes.ok) {
-        const attData = await attRes.json();
+
+      if (!res.ok) {
+        if (res.status === 404) {
+           setCurrentEmployee(null); // deactivated or deleted
+           localStorage.removeItem('employeeSession');
+        }
+        return;
+      }
+
+      const data = await res.json();
+      
+      // 0. Refresh current logged-in employee status to detect deactivation instantly
+      if (data.employee) {
+        const freshEmp = data.employee;
+        setCurrentEmployee(freshEmp);
+        localStorage.setItem('employeeSession', JSON.stringify(freshEmp));
+        if (freshEmp.status && freshEmp.status !== 'Aktif') {
+          return;
+        }
+      }
+
+      // 1. Fetch Locations to check geofence
+      if (shouldFetchStatic && data.locations) {
+        const locData = data.locations;
+        setAllLocations(locData);
+        const myLoc = locData.find((l: any) => l.id === currentEmployee.locationId);
+        if (myLoc) setOfficeLocation(myLoc);
+      }
+
+      // 2. Compute dynamic 7-day schedule
+      if (shouldFetchStatic) {
+        let shiftTypes = data.shiftTypes || [];
+        let pattern = data.shiftPatterns && data.shiftPatterns.length > 0 ? data.shiftPatterns[0] : null;
+        let overrides = data.overrides || [];
+
+        const formatTimeStr = (tStr: string) => {
+          if (!tStr) return "08:00";
+          if (tStr.includes('T')) {
+            const parts = tStr.split('T')[1];
+            if (parts) return parts.substring(0, 5);
+          }
+          return tStr.substring(0, 5);
+        };
+
+        // Generate 7 days starting from today (dynamic future schedule)
+        const computedSchedules: Schedule[] = [];
+        const today = new Date();
+
+        for (let i = 0; i < 7; i++) {
+          const targetDate = new Date();
+          targetDate.setDate(today.getDate() + i);
+
+          // Format as YYYY-MM-DD for checking overrides
+          const yyyy = targetDate.getFullYear();
+          const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+          const dd = String(targetDate.getDate()).padStart(2, '0');
+          const dateStr = `${yyyy}-${mm}-${dd}`;
+
+          // Find if there is an override for this date
+          const override = overrides.find((o: any) => {
+            const oDate = new Date(o.overrideDate);
+            const oY = oDate.getFullYear();
+            const oM = String(oDate.getMonth() + 1).padStart(2, '0');
+            const oD = String(oDate.getDate()).padStart(2, '0');
+            return `${oY}-${oM}-${oD}` === dateStr;
+          });
+
+          let activeShift: any = null;
+          if (override) {
+            activeShift = shiftTypes.find((s: any) => s.id === override.shiftTypeId);
+          }
+
+          // If no override, calculate from shift pattern
+          if (!activeShift && pattern && pattern.sequence && pattern.sequence.length > 0) {
+            const pDate = new Date(pattern.startDate);
+
+            // Calculate difference in calendar days
+            const tDateReset = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+            const pDateReset = new Date(pDate.getFullYear(), pDate.getMonth(), pDate.getDate());
+            const diffTime = tDateReset.getTime() - pDateReset.getTime();
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays >= 0) {
+              const index = diffDays % pattern.sequence.length;
+              const shiftId = pattern.sequence[index];
+              activeShift = shiftTypes.find((s: any) => s.id === shiftId);
+            }
+          }
+
+          // Fallback if no pattern or shift found
+          if (!activeShift) {
+            const defaultShifts = [
+              { name: 'SHIFT PAGI', start: '08:00', end: '16:00', off: false },
+              { name: 'SHIFT PAGI', start: '08:00', end: '16:00', off: false },
+              { name: 'SHIFT SIANG', start: '16:00', end: '24:00', off: false },
+              { name: 'SHIFT SIANG', start: '16:00', end: '24:00', off: false },
+              { name: 'SHIFT MALAM', start: '00:00', end: '08:00', off: false },
+              { name: 'SHIFT MALAM', start: '00:00', end: '08:00', off: false },
+              { name: 'LIBUR MINGGUAN', start: 'Libur', end: 'Libur', off: true },
+            ];
+            const fallback = defaultShifts[i % 7];
+            computedSchedules.push({
+              id: `fallback-${dateStr}`,
+              employeeId: currentEmployee.id,
+              date: targetDate.toISOString(),
+              shiftName: fallback.name,
+              shiftStart: fallback.start,
+              shiftEnd: fallback.end,
+              isOffDay: fallback.off
+            });
+          } else {
+            computedSchedules.push({
+              id: `computed-${dateStr}`,
+              employeeId: currentEmployee.id,
+              date: targetDate.toISOString(),
+              shiftName: activeShift.name,
+              shiftStart: activeShift.isOffDay ? "Libur" : formatTimeStr(activeShift.startTime),
+              shiftEnd: activeShift.isOffDay ? "Libur" : formatTimeStr(activeShift.endTime),
+              isOffDay: activeShift.isOffDay
+            });
+          }
+        }
+
+        setSchedulesList(computedSchedules);
+      }
+
+      // 3. Fetch today's attendance state
+      if (data.attendances) {
+        const attData = data.attendances;
         setAttendancesHistory(attData);
         
         // Find today's date formatted using fully timezone-safe local year, month, and day matching
@@ -584,119 +560,71 @@ export default function EmployeePortal() {
         });
         if (todayAtt) {
           setTodayAttendance(todayAtt);
-        } else {
-          setTodayAttendance(null);
         }
       }
 
-      // 4. Leave requests
-      const leaveRes = await fetch('/api/sql/rpc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'getDocs',
-          collection: 'leave_requests',
-          filters: [{ field: 'employeeId', operator: '==', value: currentEmployee.id }]
-        })
-      });
-      if (leaveRes.ok) {
-        setLeaveRequestsHistory(await leaveRes.json());
+      // 4. Fetch leave history
+      if (data.leaveRequests) {
+        setLeaveRequestsHistory(data.leaveRequests);
       }
 
-      // 5. Overtime requests
-      const otRes = await fetch('/api/sql/rpc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'getDocs',
-          collection: 'overtime_requests',
-          filters: [{ field: 'employeeId', operator: '==', value: currentEmployee.id }]
-        })
-      });
-      if (otRes.ok) {
-        setOvertimeRequestsHistory(await otRes.json());
+      // 5. Fetch overtime history
+      if (data.overtimeRequests) {
+        setOvertimeRequestsHistory(data.overtimeRequests);
       }
 
-      // 6. Work Reports
-      const repRes = await fetch('/api/sql/rpc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'getDocs',
-          collection: 'work_reports',
-          filters: [{ field: 'employeeId', operator: '==', value: currentEmployee.id }]
-        })
-      });
-      if (repRes.ok) {
-        setWorkReportsHistory(await repRes.json());
+      // 6. Fetch work reports history
+      if (data.workReports) {
+        setWorkReportsHistory(data.workReports);
       }
 
       // 7. Group Member Check for Leaders (Ketua Regu)
-      if (currentEmployee.role && (currentEmployee.role.toLowerCase().includes('ketua') || currentEmployee.role.toLowerCase().includes('leader') || currentEmployee.role.toLowerCase().includes('danru'))) {
-        const empRes = await fetch('/api/sql/rpc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'getDocs',
-            collection: 'employees',
-            filters: [{ field: 'subDepartmentId', operator: '==', value: currentEmployee.subDepartmentId }]
-          })
-        });
-        if (empRes.ok) {
-          const list = await empRes.json();
-          setAllSubDeptEmployees(list.filter((e: Employee) => e.id !== currentEmployee.id));
+      if (isLeader) {
+        if (shouldFetchStatic && data.teamEmployees) {
+          const list = data.teamEmployees;
+          setAllSubDeptEmployees(list.filter((e: any) => e.id !== currentEmployee.id));
         }
 
         // Fetch team attendances to show in Squad Command Panel
-        const teamAttRes = await fetch('/api/sql/rpc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'getDocs',
-            collection: 'attendances'
-          })
-        });
-        if (teamAttRes.ok) {
-          setTeamAttendances(await teamAttRes.json());
+        if (data.teamAttendances) {
+          // only show attendances for today
+          const now = new Date();
+          const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+          
+          const todaysTeam = data.teamAttendances.filter((a: any) => {
+            return new Date(a.attendanceDate).toISOString().split('T')[0] === todayStr && a.employeeId !== currentEmployee.id;
+          });
+          setTeamAttendances(todaysTeam);
         }
       }
 
       // 8. Fetch Announcements for Urgent Popup Modal
-      const annRes = await fetch('/api/sql/rpc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'getDocs',
-          collection: 'announcements'
-        })
-      });
-      
-      let fetchedAnnouncements: Announcement[] = [];
-      if (annRes.ok) {
-        fetchedAnnouncements = await annRes.json();
-      }
+      if (shouldFetchStatic) {
+        let fetchedAnnouncements: any[] = data.announcements || [];
 
-      // If no announcements are found in database, seed a default fallback announcement for premium presentation
-      if (fetchedAnnouncements.length === 0) {
-        fetchedAnnouncements = [{
-          id: 'default-command-sop-announcement',
-          title: 'Instruksi Peningkatan Keamanan & Kesiapsiagaan Cuaca Ekstrem',
-          content: 'Menyikapi perkembangan cuaca ekstrem saat ini, seluruh personel Gada Pratama diwajibkan meningkatkan intensitas patroli keliling di area rawan banjir, tiang listrik longsor, atau pohon tumbang minimal satu jam sekali. Pastikan senter operasional menyala dan geofencing GPS mobile Anda selalu aktif selama jam dinas komando berlangsung.',
-          type: 'SOP Operasional',
-          createdAt: new Date().toISOString()
-        }];
-      }
-
-      // Find latest announcement
-      if (fetchedAnnouncements.length > 0) {
-        const latest = fetchedAnnouncements[0];
-        const lastSeenId = localStorage.getItem('gtp_last_seen_announcement_id');
-        if (lastSeenId !== latest.id) {
-          setActiveAnnouncement(latest);
-          setShowAnnouncementModal(true);
+        // If no announcements are found in database, seed a default fallback announcement for premium presentation
+        if (fetchedAnnouncements.length === 0) {
+          fetchedAnnouncements = [{
+            id: 'default-command-sop-announcement',
+            title: 'Instruksi Peningkatan Keamanan & Kesiapsiagaan Cuaca Ekstrem',
+            content: 'Menyikapi perkembangan cuaca ekstrem saat ini, seluruh personel Gada Pratama diwajibkan meningkatkan intensitas patroli keliling di area rawan banjir, tiang listrik longsor, atau pohon tumbang minimal satu jam sekali. Pastikan senter operasional menyala dan geofencing GPS mobile Anda selalu aktif selama jam dinas komando berlangsung.',
+            type: 'SOP Operasional',
+            createdAt: new Date().toISOString()
+          }];
         }
-      }
 
+        // Find latest announcement
+        if (fetchedAnnouncements.length > 0) {
+          const latest = fetchedAnnouncements[0];
+          const lastSeenId = localStorage.getItem('gtp_last_seen_announcement_id');
+          if (lastSeenId !== latest.id) {
+            setActiveAnnouncement(latest);
+            setShowAnnouncementModal(true);
+          }
+        }
+        
+        staticDataFetched.current = true;
+      }
     } catch (e) {
       console.error("Gagal memuat resource pegawai", e);
     }
@@ -709,7 +637,7 @@ export default function EmployeePortal() {
 
     try {
       const trimmedNik = nik.trim();
-      const response = await fetch('/api/employee/login', {
+      const response = await fetch(API_BASE_URL + '/api/employee/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nik: trimmedNik, password })
@@ -781,31 +709,22 @@ export default function EmployeePortal() {
   };
 
   const handleCapturePhoto = async (setter: (val: string) => void) => {
-    if (isNative) {
-      try {
-        const image = await CapacitorCamera.getPhoto({
-          quality: 50,
-          width: 800,
-          allowEditing: false,
-          resultType: CameraResultType.DataUrl,
-          source: CameraSource.Camera,
-          direction: 'REAR' as any
-        });
-        if (image.dataUrl) {
-           setter(image.dataUrl);
-           triggerToast('Foto berhasil ditangkap!');
-        }
-      } catch (e: any) {
-        console.error("Native camera error:", e);
+    try {
+      const image = await CapacitorCamera.getPhoto({
+        quality: 50,
+        width: 800,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        direction: 'REAR' as any
+      });
+      if (image.dataUrl) {
+         setter(image.dataUrl);
+         triggerToast('Foto berhasil ditangkap!');
       }
-    } else {
-      // Fallback for web if they can't use native: use a hidden input with capture
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.capture = 'environment';
-      input.onchange = (e: any) => handleFileChange(e, setter);
-      input.click();
+    } catch (e: any) {
+      console.error("Camera error:", e);
+      triggerToast('Gagal membuka kamera: ' + (e.message || 'Error'));
     }
   };
 
@@ -845,155 +764,193 @@ export default function EmployeePortal() {
       }
     }
 
-    setLoading(true);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentTimeStr = currentTime.toTimeString().split(' ')[0].substring(0, 5); // "HH:MM"
 
-    try {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const currentTimeStr = currentTime.toTimeString().split(' ')[0].substring(0, 5); // "HH:MM"
+    // Calculate isLate automatically
+    let calculatedIsLate = false;
+    const schDetails = getTodayScheduleDetails();
+    if (schDetails && schDetails.shiftStart) {
+      const [startH, startM] = schDetails.shiftStart.split(':').map(Number);
+      const shiftStartObj = new Date();
+      shiftStartObj.setHours(startH, startM, 0, 0);
+      calculatedIsLate = currentTime.getTime() > shiftStartObj.getTime();
+    }
 
-      // Calculate isLate automatically
-      let calculatedIsLate = false;
-      const schDetails = getTodayScheduleDetails();
-      if (schDetails && schDetails.shiftStart) {
-        const [startH, startM] = schDetails.shiftStart.split(':').map(Number);
-        const shiftStartObj = new Date();
-        shiftStartObj.setHours(startH, startM, 0, 0);
-        calculatedIsLate = currentTime.getTime() > shiftStartObj.getTime();
+    if (attendanceModalType === 'masuk') {
+      // Clock In
+      const payload = {
+        action: 'addDoc',
+        collection: 'attendances',
+        data: {
+          employeeId: targetEmployeeId,
+          attendanceDate: new Date(),
+          status: 'Hadir',
+          timeIn: currentTimeStr,
+          timeOut: null,
+          isLate: calculatedIsLate,
+          photoUrl: selfiePreview,
+        }
+      };
+
+      // --- OPTIMISTIC UI UPDATE ---
+      const optimisticAtt = {
+        id: 'temp-' + Date.now(),
+        ...payload.data,
+        attendanceDate: payload.data.attendanceDate.toISOString(),
+      };
+      
+      if (!isGroupAttendance) {
+        setTodayAttendance(optimisticAtt as any);
+        setAttendancesHistory(prev => [optimisticAtt as any, ...prev]);
+      } else {
+        setTeamAttendances(prev => [optimisticAtt as any, ...prev]);
       }
 
-      if (attendanceModalType === 'masuk') {
-        // Clock In
-        const payload = {
-          action: 'addDoc',
-          collection: 'attendances',
-          data: {
-            employeeId: targetEmployeeId,
-            attendanceDate: new Date(),
-            status: 'Hadir',
-            timeIn: currentTimeStr,
-            timeOut: null,
-            isLate: calculatedIsLate,
-            photoUrl: selfiePreview,
-          }
-        };
+      triggerToast(`Clock-In Berhasil jam ${currentTimeStr}!`);
+      setSelfiePreview(null);
+      setSelectedGroupMemberId('');
+      setShowAttendanceModal(false);
 
-        const res = await fetch('/api/sql/rpc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+      // Background sync
+      fetch(API_BASE_URL + '/api/sql/rpc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(async res => {
+        if (!res.ok) throw new Error("Gagal sinkronisasi");
+        const result = await res.json();
+        // Update temporary ID with real ID from server
+        if (!isGroupAttendance) {
+          setAttendancesHistory(prev => prev.map(a => a.id === optimisticAtt.id ? { ...a, id: result.id } : a));
+          setTodayAttendance(prev => prev && prev.id === optimisticAtt.id ? { ...prev, id: result.id } : prev);
+        } else {
+          setTeamAttendances(prev => prev.map(a => a.id === optimisticAtt.id ? { ...a, id: result.id } : a));
+        }
+      }).catch(err => {
+        console.error(err);
+        triggerToast('Koneksi terputus. Harap muat ulang untuk memastikan sinkronisasi.');
+      });
+    } 
+    else if (attendanceModalType === 'pulang') {
+      // Clock Out
+      let targetAttId = todayAttendance?.id;
+      
+      // --- OPTIMISTIC UI UPDATE ---
+      if (!isGroupAttendance && todayAttendance) {
+        setTodayAttendance({
+          ...todayAttendance,
+          timeOut: currentTimeStr,
+          photoUrl: selfiePreview || todayAttendance.photoUrl
         });
+      }
+      // Update history locally
+      if (!isGroupAttendance) {
+        setAttendancesHistory(prev => prev.map(a => 
+          a.employeeId === targetEmployeeId && new Date(a.attendanceDate).toISOString().split('T')[0] === todayStr
+            ? { ...a, timeOut: currentTimeStr, photoUrl: selfiePreview || a.photoUrl }
+            : a
+        ));
+      } else {
+        setTeamAttendances(prev => prev.map(a => 
+          a.employeeId === targetEmployeeId && new Date(a.attendanceDate).toISOString().split('T')[0] === todayStr
+            ? { ...a, timeOut: currentTimeStr, photoUrl: selfiePreview || a.photoUrl }
+            : a
+        ));
+      }
 
-        if (res.ok) {
-          triggerToast(`Clock-In Berhasil jam ${currentTimeStr}!`);
-          setSelfiePreview(null);
-          setSelectedGroupMemberId('');
-          setShowAttendanceModal(false);
-          await fetchEmployeeResources();
-        } else {
-          const err = await res.json();
-          alert('Gagal mengirim absensi: ' + err.error);
-        }
-      } 
-      else if (attendanceModalType === 'pulang') {
-        // Clock Out
-        let targetAttId = todayAttendance?.id;
-        
-        if (isGroupAttendance) {
-          const memberAttRes = await fetch('/api/sql/rpc', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'getDocs',
+      triggerToast(`Clock-Out Berhasil jam ${currentTimeStr}!`);
+      setSelfiePreview(null);
+      setSelectedGroupMemberId('');
+      setShowAttendanceModal(false);
+
+      // Background sync
+      (async () => {
+        try {
+          if (isGroupAttendance) {
+            const memberAttRes = await fetch(API_BASE_URL + '/api/sql/rpc', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'getDocs',
+                collection: 'attendances',
+                filters: [{ field: 'employeeId', operator: '==', value: targetEmployeeId }]
+              })
+            });
+            if (memberAttRes.ok) {
+              const history = await memberAttRes.json();
+              const memberToday = history.find((a: any) => new Date(a.attendanceDate).toISOString().split('T')[0] === todayStr);
+              targetAttId = memberToday?.id;
+            }
+          }
+
+          if (targetAttId) {
+            const payload = {
+              action: 'updateDoc',
               collection: 'attendances',
-              filters: [{ field: 'employeeId', operator: '==', value: targetEmployeeId }]
-            })
-          });
-          if (memberAttRes.ok) {
-            const history = await memberAttRes.json();
-            const memberToday = history.find((a: any) => new Date(a.attendanceDate).toISOString().split('T')[0] === todayStr);
-            targetAttId = memberToday?.id;
-          }
-        }
-
-        if (targetAttId) {
-          const payload = {
-            action: 'updateDoc',
-            collection: 'attendances',
-            docId: targetAttId,
-            data: {
-              timeOut: currentTimeStr,
-              photoUrl: selfiePreview
-            }
-          };
-
-          const res = await fetch('/api/sql/rpc', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          if (res.ok) {
-            triggerToast(`Clock-Out Berhasil jam ${currentTimeStr}!`);
-            setSelfiePreview(null);
-            setSelectedGroupMemberId('');
-            setShowAttendanceModal(false);
-            await fetchEmployeeResources();
+              docId: targetAttId,
+              data: {
+                timeOut: currentTimeStr,
+                photoUrl: selfiePreview
+              }
+            };
+            const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error("Gagal update absen pulang");
           } else {
-            const err = await res.json();
-            alert('Gagal mengirim absensi: ' + err.error);
-          }
-        } else {
-          // If member does not have attendance yet, allow clock-in fallback
-          const payload = {
-            action: 'addDoc',
-            collection: 'attendances',
-            data: {
-              employeeId: targetEmployeeId,
-              attendanceDate: new Date(),
-              status: 'Hadir',
-              timeIn: currentTimeStr,
-              timeOut: null,
-              isLate: calculatedIsLate,
-              photoUrl: selfiePreview,
+            // fallback add
+            const payload = {
+              action: 'addDoc',
+              collection: 'attendances',
+              data: {
+                employeeId: targetEmployeeId,
+                attendanceDate: new Date(),
+                status: 'Hadir',
+                timeIn: currentTimeStr,
+                timeOut: null,
+                isLate: calculatedIsLate,
+                photoUrl: selfiePreview,
+              }
+            };
+            const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error("Gagal fallback absen");
+            
+            const result = await res.json();
+            // Update temporary ID with real ID
+            if (!isGroupAttendance) {
+              setAttendancesHistory(prev => prev.map(a => a.employeeId === targetEmployeeId && a.id.startsWith('temp-') ? { ...a, id: result.id } : a));
+            } else {
+              setTeamAttendances(prev => prev.map(a => a.employeeId === targetEmployeeId && a.id.startsWith('temp-') ? { ...a, id: result.id } : a));
             }
-          };
-          const res = await fetch('/api/sql/rpc', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          if (res.ok) {
-            triggerToast(`Clock-In Fallback Berhasil!`);
-            setSelfiePreview(null);
-            setSelectedGroupMemberId('');
-            setShowAttendanceModal(false);
-            await fetchEmployeeResources();
-          } else {
-            const err = await res.json();
-            alert('Gagal: ' + err.error);
           }
+        } catch (err) {
+          console.error(err);
+          triggerToast('Sinkronisasi latar belakang gagal. Akan dicoba lagi.');
         }
-      }
-      else if (attendanceModalType === 'lembur_masuk') {
-        // Handle Overtime clock-in locally
-        setOvertimeTimeIn(currentTimeStr);
-        localStorage.setItem('gtp_overtime_time_in', currentTimeStr);
-        triggerToast(`Absen Masuk Lembur Berhasil jam ${currentTimeStr}!`);
-        setSelfiePreview(null);
-        setShowAttendanceModal(false);
-      }
-      else if (attendanceModalType === 'lembur_pulang') {
-        // Handle Overtime clock-out locally
-        setOvertimeTimeOut(currentTimeStr);
-        localStorage.setItem('gtp_overtime_time_out', currentTimeStr);
-        triggerToast(`Absen Selesai Lembur Berhasil jam ${currentTimeStr}!`);
-        setSelfiePreview(null);
-        setShowAttendanceModal(false);
-      }
-    } catch (e: any) {
-      alert('Error saat mengirim absensi: ' + e.message);
-    } finally {
-      setLoading(false);
+      })();
+    }
+    else if (attendanceModalType === 'lembur_masuk') {
+      // Handle Overtime clock-in locally
+      setOvertimeTimeIn(currentTimeStr);
+      localStorage.setItem('gtp_overtime_time_in', currentTimeStr);
+      triggerToast(`Absen Masuk Lembur Berhasil jam ${currentTimeStr}!`);
+      setSelfiePreview(null);
+      setShowAttendanceModal(false);
+    }
+    else if (attendanceModalType === 'lembur_pulang') {
+      // Handle Overtime clock-out locally
+      setOvertimeTimeOut(currentTimeStr);
+      localStorage.setItem('gtp_overtime_time_out', currentTimeStr);
+      triggerToast(`Absen Selesai Lembur Berhasil jam ${currentTimeStr}!`);
+      setSelfiePreview(null);
+      setShowAttendanceModal(false);
     }
   };
 
@@ -1010,7 +967,7 @@ export default function EmployeePortal() {
       return;
     }
 
-    setLoading(true);
+    setIsSubmittingLeave(true);
     try {
       const payload = {
         action: 'addDoc',
@@ -1025,7 +982,7 @@ export default function EmployeePortal() {
         }
       };
 
-      const res = await fetch('/api/sql/rpc', {
+      const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1033,10 +990,19 @@ export default function EmployeePortal() {
 
       if (res.ok) {
         triggerToast('Pengajuan cuti/izin dikirim!');
+        const result = await res.json();
+        
+        // Targeted local state update
+        const newLeave = {
+          id: result.id || 'temp-' + Date.now(),
+          ...payload.data,
+          requestDate: payload.data.requestDate.toISOString()
+        };
+        setLeaveRequestsHistory(prev => [newLeave as any, ...prev]);
+
         setLeaveReason('');
         setLeaveDate('');
         setLeaveAttachment(null);
-        await fetchEmployeeResources();
         setActiveTab('home');
       } else {
         const err = await res.json();
@@ -1045,7 +1011,7 @@ export default function EmployeePortal() {
     } catch (e: any) {
       alert('Error: ' + e.message);
     } finally {
-      setLoading(false);
+      setIsSubmittingLeave(false);
     }
   };
 
@@ -1057,7 +1023,7 @@ export default function EmployeePortal() {
       return;
     }
 
-    setLoading(true);
+    setIsSubmittingOvertime(true);
     try {
       const payload = {
         action: 'addDoc',
@@ -1071,7 +1037,7 @@ export default function EmployeePortal() {
         }
       };
 
-      const res = await fetch('/api/sql/rpc', {
+      const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1079,10 +1045,19 @@ export default function EmployeePortal() {
 
       if (res.ok) {
         triggerToast('Pengajuan lembur dikirim!');
+        const result = await res.json();
+        
+        // Targeted local state update
+        const newOvertime = {
+          id: result.id || 'temp-' + Date.now(),
+          ...payload.data,
+          requestDate: payload.data.requestDate.toISOString()
+        };
+        setOvertimeRequestsHistory(prev => [newOvertime as any, ...prev]);
+
         setOvertimeReason('');
         setOvertimeDate('');
         setOvertimeHours('2');
-        await fetchEmployeeResources();
         setActiveTab('home');
       } else {
         const err = await res.json();
@@ -1091,7 +1066,7 @@ export default function EmployeePortal() {
     } catch (e: any) {
       alert('Error: ' + e.message);
     } finally {
-      setLoading(false);
+      setIsSubmittingOvertime(false);
     }
   };
 
@@ -1116,7 +1091,7 @@ export default function EmployeePortal() {
         }
       };
 
-      const res = await fetch('/api/sql/rpc', {
+      const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1124,9 +1099,18 @@ export default function EmployeePortal() {
 
       if (res.ok) {
         triggerToast('Laporan kerja terkirim!');
+        const result = await res.json();
+        
+        // Targeted local state update
+        const newReport = {
+          id: result.id || 'temp-' + Date.now(),
+          ...payload.data,
+          date: payload.data.date.toISOString()
+        };
+        setWorkReportsHistory(prev => [newReport as any, ...prev]);
+
         setReportText('');
         setReportPhoto(null);
-        await fetchEmployeeResources();
         setActiveTab('home');
       } else {
         const err = await res.json();
@@ -1143,28 +1127,26 @@ export default function EmployeePortal() {
 
   // Check if today is leave/sick or rest day
   const getTodayStatusInfo = () => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
-    const d = now.getDate();
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
     
     // Check if approved leave request is active today
     const hasApprovedLeave = leaveRequestsHistory.some(req => {
       if (req.status !== 'Approved') return false;
-      const reqDate = new Date(req.requestDate);
-      return reqDate.getFullYear() === y && reqDate.getMonth() === m && reqDate.getDate() === d;
+      const reqDateStr = typeof req.requestDate === 'string' 
+          ? req.requestDate.split('T')[0] 
+          : new Date(req.requestDate).toISOString().split('T')[0];
+      return reqDateStr === todayStr;
     });
 
     // Check today's schedule off-day
-    const todaySchedule = schedulesList.find(sch => {
-      const schDate = new Date(sch.date);
-      return schDate.getFullYear() === y && schDate.getMonth() === m && schDate.getDate() === d;
-    });
+    const todaySchedule = schedulesList.find(sch => sch.date === todayStr);
+    
     const isTodayOffDay = todaySchedule?.isOffDay === true;
 
     return {
       isRestState: hasApprovedLeave || isTodayOffDay,
-      hasClockedOut: todayAttendance?.timeOut !== null && todayAttendance?.timeOut !== undefined
+      hasClockedOut: todayAttendance?.timeOut !== null && todayAttendance?.timeOut !== undefined,
+      isApprovedLeave: hasApprovedLeave
     };
   };
 
@@ -1176,8 +1158,8 @@ export default function EmployeePortal() {
     // 1. If leave, sick or off day:
     if (statusInfo.isRestState) {
       return {
-        text: 'Waktu Istirahat 🏖️',
-        sub: 'Selamat menikmati waktu istirahat anda.'
+        text: statusInfo.isApprovedLeave ? 'Sedang Cuti / Izin' : 'Waktu Istirahat 🏖️',
+        sub: statusInfo.isApprovedLeave ? 'Pengajuan cuti/izin Anda hari ini disetujui.' : 'Selamat menikmati waktu istirahat anda.'
       };
     }
 
@@ -1228,14 +1210,22 @@ export default function EmployeePortal() {
     }
 
     const [startH, startM] = sch.shiftStart.split(':').map(Number);
-    const startObj = new Date();
+    if (isNaN(startH)) return { isEnabled: false, reason: "Format jadwal salah atau sedang libur." };
+    const startObj = new Date(currentTime.getTime());
     startObj.setHours(startH, startM, 0, 0);
 
     const [endH, endM] = sch.shiftEnd.split(':').map(Number);
-    const endObj = new Date();
+    const endObj = new Date(currentTime.getTime());
     endObj.setHours(endH, endM, 0, 0);
 
-    // Jika sudah lewat jam pulang (Bug 2)
+    if (endObj.getTime() <= startObj.getTime()) {
+       if (currentTime.getHours() < endH || (currentTime.getHours() === endH && currentTime.getMinutes() <= endM)) {
+         startObj.setDate(startObj.getDate() - 1);
+       } else {
+         endObj.setDate(endObj.getDate() + 1);
+       }
+    }
+
     if (currentTime.getTime() >= endObj.getTime()) {
       return { 
         isEnabled: false, 
@@ -1244,8 +1234,6 @@ export default function EmployeePortal() {
     }
 
     const timeDiffMinutes = (startObj.getTime() - currentTime.getTime()) / (60 * 1000);
-
-    // Timing check: can only click 10 minutes before the shift start (Bug 1)
     if (timeDiffMinutes > 10) {
       return { 
         isEnabled: false, 
@@ -1262,9 +1250,22 @@ export default function EmployeePortal() {
       return { isEnabled: false, reason: "Hari ini adalah jadwal libur (Off Day)." };
     }
 
+    const [startH, startM] = sch.shiftStart.split(':').map(Number);
+    if (isNaN(startH)) return { isEnabled: false, reason: "Format jadwal salah atau sedang libur." };
+    const startObj = new Date(currentTime.getTime());
+    startObj.setHours(startH, startM, 0, 0);
+
     const [endH, endM] = sch.shiftEnd.split(':').map(Number);
-    const endObj = new Date();
+    const endObj = new Date(currentTime.getTime());
     endObj.setHours(endH, endM, 0, 0);
+
+    if (endObj.getTime() <= startObj.getTime()) {
+       if (currentTime.getHours() < endH || (currentTime.getHours() === endH && currentTime.getMinutes() <= endM)) {
+         startObj.setDate(startObj.getDate() - 1);
+       } else {
+         endObj.setDate(endObj.getDate() + 1);
+       }
+    }
 
     const hasPassedShiftEnd = currentTime.getTime() >= endObj.getTime();
 
@@ -1340,12 +1341,69 @@ export default function EmployeePortal() {
   const greetingObj = getGreeting();
   const scheduleDetails = getTodayScheduleDetails();
 
+  // Show full history arrays to prevent logs from disappearing
+  const filteredLeaveRequests = leaveRequestsHistory;
+  const filteredOvertimeRequests = overtimeRequestsHistory;
+  const filteredWorkReports = workReportsHistory;
+
+
+  const [pullY, setPullY] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const touchStartY = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      touchStartY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartY.current > 0 && window.scrollY <= 0) {
+      const currentY = e.touches[0].clientY;
+      const diff = currentY - touchStartY.current;
+      if (diff > 0) {
+        setPullY(Math.min(diff, 100));
+      }
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (pullY > 60 && !isRefreshing) {
+      setIsRefreshing(true);
+      if (currentEmployee) {
+        await fetchEmployeeResources(true);
+      }
+      setIsRefreshing(false);
+    }
+    setPullY(0);
+    touchStartY.current = 0;
+  };
+
   return (
-    <div className="min-h-screen bg-slate-100 flex justify-center font-sans selection:bg-[#0C2461]/20 text-slate-800">
+    <div className="h-screen max-h-screen bg-slate-100 flex justify-center font-sans selection:bg-[#0C2461]/20 text-slate-800 overflow-hidden">
       
       {/* Edge-to-Edge Fluid Responsive Mobile Wrapper (Centered Max-Width Container on Desktop) */}
-      <div className="w-full max-w-md bg-[#F8FAFC] min-h-screen flex flex-col relative shadow-lg md:border-x border-slate-200/50 pb-20 overflow-x-hidden">
+      <div 
+        className="w-full max-w-md bg-[#F8FAFC] h-full max-h-full flex flex-col relative shadow-lg md:border-x border-slate-200/50 overflow-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Pull to refresh visual */}
+        <div 
+          className="absolute top-0 left-0 w-full flex justify-center items-center overflow-hidden transition-all duration-200 z-50 bg-transparent"
+          style={{ height: `${pullY}px` }}
+        >
+          <div className={`flex items-center gap-2 text-slate-500 ${isRefreshing ? 'animate-pulse' : ''}`}>
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} style={{ transform: `rotate(${pullY * 2}deg)` }} />
+            <span className="text-xs font-bold font-mono uppercase">{isRefreshing ? 'Memperbarui...' : pullY > 60 ? 'Lepaskan' : 'Tarik ke bawah'}</span>
+          </div>
+        </div>
+
         
+
+        {/* Main Content Wrapper for PTR */}
+        <div style={{ transform: `translateY(${pullY}px)`, transition: (pullY === 0 || isRefreshing) ? 'transform 0.2s' : 'none', height: '100%', display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
         {/* Toast Notification */}
         <AnimatePresence>
           {activeToast && (
@@ -1392,11 +1450,11 @@ export default function EmployeePortal() {
         </header>
 
         {/* --- MAIN PAGE CONTENT --- */}
-        <main className="flex-grow flex flex-col bg-[#F8FAFC]">
+        <main className="flex-1 flex flex-col min-h-0 bg-[#F8FAFC] overflow-hidden relative">
           
           {!isLoggedIn ? (
             /* --- 1. AUTH / LOGIN SCREEN --- */
-            <div className="flex-grow flex flex-col justify-center px-6 py-10 space-y-8 animate-fade-in relative">
+            <div className="flex-grow flex flex-col justify-center overflow-y-auto px-6 py-10 space-y-8 animate-fade-in relative">
               <div className="text-center space-y-4">
                 <div className="w-20 h-20 bg-gradient-to-tr from-[#0C2461] to-[#1E3A8A] rounded-[28px] mx-auto flex items-center justify-center shadow-xl border-4 border-white ring-4 ring-slate-100">
                   <Smartphone className="w-10 h-10 text-[#14B8A6]" />
@@ -1508,22 +1566,24 @@ export default function EmployeePortal() {
             </div>
           ) : (
             /* --- 2. LOGGED IN PORTAL WORKSPACE --- */
-            <div className="p-4.5 space-y-5">
+            <div className="flex-grow flex flex-col min-h-0 relative overflow-hidden">
               
               {/* BACK TO HOME SHORTCUT COMPONENT */}
               {activeTab !== 'home' && (
-                <button 
-                  onClick={() => { setActiveTab('home'); setSelfiePreview(null); }}
-                  className="flex items-center gap-1.5 text-xs text-[#0C2461] hover:text-[#1E3A8A] font-extrabold transition-colors bg-white px-3.5 py-2 rounded-xl shadow-sm border border-slate-200/60 self-start cursor-pointer active:scale-95"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5 text-red-600 stroke-[3px]" />
-                  Kembali ke Beranda
-                </button>
+                <div className="p-4.5 pb-0 flex-shrink-0">
+                  <button 
+                    onClick={() => { setActiveTab('home'); setSelfiePreview(null); }}
+                    className="flex items-center gap-1.5 text-xs text-[#0C2461] hover:text-[#1E3A8A] font-extrabold transition-colors bg-white px-3.5 py-2 rounded-xl shadow-sm border border-slate-200/60 self-start cursor-pointer active:scale-95"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 text-red-600 stroke-[3px]" />
+                    Kembali ke Beranda
+                  </button>
+                </div>
               )}
 
               {/* === TAB 1: HOME (MAIN DASHBOARD) === */}
               {activeTab === 'home' && (
-                <div className="space-y-5 animate-fade-in">
+                <div className="flex-1 overflow-y-auto p-4.5 pb-24 space-y-5 animate-fade-in no-scrollbar min-h-0">
                   
                   {/* MODERN PROFILE COMPACT DECK */}
                   <div className="bg-white border border-slate-100 p-4 rounded-3xl flex items-center gap-3.5 relative overflow-hidden shadow-sm shadow-indigo-900/5">
@@ -1632,7 +1692,7 @@ export default function EmployeePortal() {
                         /* Case 1: Today is Off day or Approved Leave */
                         <div className="w-full bg-slate-100 text-slate-500 py-3.5 px-4 rounded-2xl text-xs font-black uppercase tracking-widest border border-slate-200 flex items-center justify-center gap-1.5">
                           <CalendarDays className="w-4 h-4 text-slate-400" />
-                          <span>Hari Ini Anda Libur / Cuti</span>
+                          <span>{getTodayStatusInfo().isApprovedLeave ? 'Sedang Cuti / Izin' : 'Hari Ini Libur (Jadwal)'}</span>
                         </div>
                       ) : !todayAttendance ? (
                         /* Case 2: Clock-In is needed */
@@ -1930,7 +1990,7 @@ export default function EmployeePortal() {
 
               {/* === TAB 2: LEAVE / PERIZINAN === */}
               {activeTab === 'izin' && (
-                <div className="space-y-5 animate-fade-in">
+                <div className="flex-1 overflow-y-auto p-4.5 pb-28 space-y-5 animate-fade-in no-scrollbar min-h-0">
                   <div className="space-y-1">
                     <h3 className="text-sm font-black text-[#0C2461] uppercase tracking-tight">Pengajuan Cuti & Sakit</h3>
                     <p className="text-xs text-slate-500">Setiap pengajuan sakit WAJIB melampirkan surat dokter resmi.</p>
@@ -2004,10 +2064,10 @@ export default function EmployeePortal() {
 
                     <button
                       type="submit"
-                      disabled={loading}
+                      disabled={isSubmittingLeave}
                       className="w-full mt-2 py-3.5 bg-gradient-to-r from-[#0C2461] to-[#1E3A8A] hover:opacity-90 text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-md cursor-pointer transition-all border-b-4 border-indigo-900"
                     >
-                      {loading ? 'Mengirim Data...' : 'Kirim Pengajuan Izin'}
+                      {isSubmittingLeave ? 'Mengirim Data...' : 'Kirim Pengajuan Izin'}
                     </button>
                   </form>
 
@@ -2015,11 +2075,11 @@ export default function EmployeePortal() {
                   <div className="space-y-3">
                     <h4 className="text-[10px] font-black tracking-widest text-[#0C2461] uppercase font-mono">Riwayat Pengajuan Anda</h4>
                     
-                    {leaveRequestsHistory.length === 0 ? (
-                      <p className="text-[10px] text-slate-400 text-center py-6 bg-white rounded-3xl border border-slate-200/80 shadow-sm">Belum ada riwayat perizinan.</p>
+                    {filteredLeaveRequests.length === 0 ? (
+                      <p className="text-[10px] text-slate-400 text-center py-6 bg-white rounded-3xl border border-slate-200/80 shadow-sm font-bold">Belum ada riwayat perizinan.</p>
                     ) : (
                       <div className="space-y-2">
-                        {leaveRequestsHistory.map((item) => (
+                        {filteredLeaveRequests.map((item) => (
                           <div key={item.id} className="bg-white border border-slate-100 p-3.5 rounded-2xl flex items-center justify-between shadow-sm">
                             <div className="space-y-1">
                               <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider font-mono ${
@@ -2051,7 +2111,7 @@ export default function EmployeePortal() {
 
               {/* === TAB 3: OVERTIME / LEMBUR === */}
               {activeTab === 'lembur' && (
-                <div className="space-y-5 animate-fade-in">
+                <div className="flex-1 overflow-y-auto p-4.5 pb-28 space-y-5 animate-fade-in no-scrollbar min-h-0">
                   <div className="space-y-1">
                     <h3 className="text-sm font-black text-[#0C2461] uppercase tracking-tight">Klaim Pengajuan Lembur</h3>
                     <p className="text-xs text-slate-500">Ajukan rincian jam dinas lembur luar jam dinas reguler.</p>
@@ -2098,10 +2158,10 @@ export default function EmployeePortal() {
 
                     <button
                       type="submit"
-                      disabled={loading}
+                      disabled={isSubmittingOvertime}
                       className="w-full mt-2 py-3.5 bg-gradient-to-r from-[#0C2461] to-[#1E3A8A] hover:opacity-90 text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-md transition-all border-b-4 border-indigo-900"
                     >
-                      {loading ? 'Mengirim Data...' : 'Kirim Klaim Lembur'}
+                      {isSubmittingOvertime ? 'Mengirim Data...' : 'Kirim Klaim Lembur'}
                     </button>
                   </form>
 
@@ -2109,11 +2169,11 @@ export default function EmployeePortal() {
                   <div className="space-y-3">
                     <h4 className="text-[10px] font-black tracking-widest text-[#0C2461] uppercase font-mono">Riwayat Lemburan Anda</h4>
                     
-                    {overtimeRequestsHistory.length === 0 ? (
-                      <p className="text-[10px] text-slate-400 text-center py-6 bg-white rounded-3xl border border-slate-200/80 shadow-sm">Belum ada riwayat lembur.</p>
+                    {filteredOvertimeRequests.length === 0 ? (
+                      <p className="text-[10px] text-slate-400 text-center py-6 bg-white rounded-3xl border border-slate-200/80 shadow-sm font-bold">Belum ada riwayat lembur.</p>
                     ) : (
                       <div className="space-y-2">
-                        {overtimeRequestsHistory.map((item) => (
+                        {filteredOvertimeRequests.map((item) => (
                           <div key={item.id} className="bg-white border border-slate-100 p-3.5 rounded-2xl flex items-center justify-between shadow-sm">
                             <div className="space-y-0.5">
                               <strong className="text-xs text-slate-900 block font-mono">
@@ -2139,7 +2199,7 @@ export default function EmployeePortal() {
 
               {/* === TAB 4: JADWAL SHIFT === */}
               {activeTab === 'jadwal' && (
-                <div className="space-y-5 animate-fade-in">
+                <div className="flex-grow overflow-y-auto p-4.5 pb-24 space-y-5 animate-fade-in no-scrollbar min-h-0">
                   <div className="space-y-1">
                     <h3 className="text-sm font-black text-[#0C2461] uppercase tracking-tight">Schedules & Shift Roster</h3>
                     <p className="text-xs text-slate-500">Berikut pembagian jadwal roster shift kerja Anda.</p>
@@ -2193,7 +2253,7 @@ export default function EmployeePortal() {
 
               {/* === TAB 5: LAPORAN KERJA === */}
               {activeTab === 'laporan' && (
-                <div className="space-y-5 animate-fade-in">
+                <div className="flex-1 overflow-y-auto p-4.5 pb-28 space-y-5 animate-fade-in no-scrollbar min-h-0">
                   <div className="space-y-1">
                     <h3 className="text-sm font-black text-[#0C2461] uppercase tracking-tight">Laporan Kerja Harian</h3>
                     <p className="text-xs text-slate-500">Unggah laporan patroli, temuan, atau aktivitas jurnal di pos jaga.</p>
@@ -2204,7 +2264,7 @@ export default function EmployeePortal() {
                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 font-mono">Isi Laporan Aktivitas / Temuan</label>
                       <textarea
                         required
-                        rows={4}
+                        rows={3}
                         className="w-full bg-slate-50 border border-slate-200 focus:border-[#0C2461] focus:ring-1 focus:ring-[#0C2461] rounded-xl px-4 py-3 text-xs text-slate-800 outline-none transition-all placeholder:text-slate-400 leading-relaxed font-bold shadow-inner"
                         placeholder="Patroli jam 23:00 di pagar barat aman, CCTV normal, gembok terkunci..."
                         value={reportText}
@@ -2227,7 +2287,7 @@ export default function EmployeePortal() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full mt-2 py-3.5 bg-gradient-to-r from-[#0C2461] to-[#1E3A8A] hover:opacity-90 text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-md transition-all border-b-4 border-indigo-900"
+                      className="w-full mt-2 py-3.5 bg-gradient-to-r from-[#0C2461] to-[#1E3A8A] hover:opacity-90 text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-md transition-all border-b-4 border-indigo-900 flex items-center justify-center gap-2"
                     >
                       <Send className="w-4 h-4 text-[#14B8A6]" />
                       Kirim Laporan Harian
@@ -2238,11 +2298,11 @@ export default function EmployeePortal() {
                   <div className="space-y-3">
                     <h4 className="text-[10px] font-black tracking-widest text-[#0C2461] uppercase font-mono">Riwayat Laporan Anda</h4>
                     
-                    {workReportsHistory.length === 0 ? (
-                      <p className="text-[10px] text-slate-400 text-center py-6 bg-white rounded-3xl border border-slate-200/80 shadow-sm">Belum ada riwayat laporan yang dikirim.</p>
+                    {filteredWorkReports.length === 0 ? (
+                      <p className="text-[10px] text-slate-400 text-center py-6 bg-white rounded-3xl border border-slate-200/80 shadow-sm font-bold">Belum ada riwayat laporan yang dikirim.</p>
                     ) : (
-                      <div className="space-y-2">
-                        {workReportsHistory.map((item) => (
+                      <div className="space-y-2.5">
+                        {filteredWorkReports.map((item) => (
                           <div key={item.id} className="bg-white border border-slate-100 p-4 rounded-2xl space-y-2 shadow-sm">
                             <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                               <span className="text-[9px] font-mono text-slate-400 font-bold">
@@ -2264,14 +2324,14 @@ export default function EmployeePortal() {
 
               {/* === TAB 6: ABSEN REGU (FOR KETUA ONLY, BUT VISIBLE TO ALL) === */}
               {activeTab === 'absen_anggota' && (
-                <div className="space-y-5 animate-fade-in">
-                  <div className="space-y-1">
+                <div className="flex-grow flex flex-col p-4.5 pb-24 overflow-hidden space-y-4 animate-fade-in min-h-0">
+                  <div className="space-y-1 flex-shrink-0">
                     <h3 className="text-sm font-black text-[#0C2461] uppercase tracking-tight">Kesiapan Regu & Absen Anggota</h3>
                     <p className="text-xs text-slate-500">Otorisasi khusus Ketua Regu untuk membantu pencatatan presensi anggota.</p>
                   </div>
 
                   {!isKetua ? (
-                    <div className="bg-white border border-red-100 rounded-3xl p-8 text-center space-y-4 shadow-sm">
+                    <div className="bg-white border border-red-100 rounded-3xl p-8 text-center space-y-4 shadow-sm flex-shrink-0">
                       <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto border border-red-100">
                         <Lock className="w-7 h-7" />
                       </div>
@@ -2286,9 +2346,9 @@ export default function EmployeePortal() {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="flex-grow flex flex-col min-h-0 space-y-4 overflow-hidden">
                       {/* STATS HEADER */}
-                      <div className="grid grid-cols-3 gap-2.5">
+                      <div className="grid grid-cols-3 gap-2.5 flex-shrink-0">
                         <div className="bg-white border border-slate-200/80 p-3 rounded-2xl text-center space-y-1 shadow-sm">
                           <span className="text-[9px] font-mono text-slate-400 font-bold uppercase tracking-wider block">Total Regu</span>
                           <span className="text-base font-black text-[#0C2461] font-mono">{allSubDeptEmployees.length}</span>
@@ -2314,7 +2374,7 @@ export default function EmployeePortal() {
                       </div>
 
                       {/* SEARCH BAR */}
-                      <div className="bg-white border border-slate-200/80 p-3 rounded-2xl shadow-sm flex items-center gap-2">
+                      <div className="bg-white border border-slate-200/80 p-3 rounded-2xl shadow-sm flex items-center gap-2 flex-shrink-0">
                         <Search className="w-4 h-4 text-slate-400 shrink-0" />
                         <input 
                           type="text"
@@ -2329,7 +2389,7 @@ export default function EmployeePortal() {
                       </div>
 
                       {/* MEMBER LIST */}
-                      <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1 no-scrollbar">
+                      <div className="flex-grow overflow-y-auto pr-1 no-scrollbar space-y-2.5 min-h-0">
                         {allSubDeptEmployees.filter(e => {
                           if (!memberSearchQuery) return true;
                           const q = memberSearchQuery.toLowerCase();
@@ -2750,7 +2810,7 @@ export default function EmployeePortal() {
           </div>
         )}
       </AnimatePresence>
-
+      </div>
     </div>
   );
 }

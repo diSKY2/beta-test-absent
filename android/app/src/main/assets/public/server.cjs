@@ -104,6 +104,7 @@ var employees = (0, import_pg_core.pgTable)("employees", {
   baseSalary: (0, import_pg_core.decimal)("base_salary", { precision: 15, scale: 2 }).notNull(),
   role: (0, import_pg_core.varchar)("role", { length: 100 }).notNull(),
   profilePicUrl: (0, import_pg_core.text)("profile_pic_url"),
+  status: (0, import_pg_core.varchar)("status", { length: 50 }).default("Aktif"),
   createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow().notNull(),
   updatedAt: (0, import_pg_core.timestamp)("updated_at").defaultNow().notNull()
 });
@@ -198,6 +199,8 @@ var announcements = (0, import_pg_core.pgTable)("announcements", {
   title: (0, import_pg_core.varchar)("title", { length: 255 }).notNull(),
   content: (0, import_pg_core.text)("content").notNull(),
   type: (0, import_pg_core.varchar)("type", { length: 100 }).notNull(),
+  mediaUrl: (0, import_pg_core.text)("media_url"),
+  isPopup: (0, import_pg_core.boolean)("is_popup").default(false),
   createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow().notNull(),
   updatedAt: (0, import_pg_core.timestamp)("updated_at").defaultNow().notNull()
 });
@@ -534,7 +537,7 @@ genericDbRouter.post("/rpc", async (req, res) => {
         res.json(results);
       }
     } else if (action === "addDoc") {
-      const newId = (0, import_uuid2.v4)();
+      const newId = data.id || (0, import_uuid2.v4)();
       const convertDates = (obj) => {
         const res2 = { ...obj };
         const dateKeyRegex = /^(createdAt|updatedAt|startDate|overrideDate|scheduleDate|attendanceDate|requestDate|date)$/;
@@ -557,6 +560,9 @@ genericDbRouter.post("/rpc", async (req, res) => {
         safeData.employeeId = "4992823a-48ec-43f0-9263-dd17756788e6";
       }
       const insertData = { ...safeData, id: newId };
+      if (collection === "employees" && (insertData.baseSalary === null || insertData.baseSalary === void 0)) {
+        insertData.baseSalary = 0;
+      }
       if (collection === "employees") {
         const { allowances, deductions, ...empData } = insertData;
         await db.insert(table).values(empData);
@@ -761,7 +767,13 @@ genericDbRouter.post("/rpc", async (req, res) => {
     }
   } catch (err) {
     console.error("RPC Error:", err, err.cause);
-    const errorMessage = err.cause ? `${err.message} - Cause: ${err.cause.message || JSON.stringify(err.cause)}` : err.message;
+    let errorMessage = err.cause ? `${err.message} - Cause: ${err.cause.message || JSON.stringify(err.cause)}` : err.message;
+    if (errorMessage.includes("violates foreign key constraint")) {
+      if (errorMessage.includes("location_id")) errorMessage = "Lokasi yang dipilih tidak valid atau sudah dihapus. Silakan muat ulang halaman.";
+      else if (errorMessage.includes("department_id")) errorMessage = "Bagian yang dipilih tidak valid atau sudah dihapus. Silakan muat ulang halaman.";
+      else if (errorMessage.includes("sub_department_id")) errorMessage = "Sub-Bagian yang dipilih tidak valid atau sudah dihapus. Silakan muat ulang halaman.";
+      else errorMessage = "Data relasi tidak valid (kemungkinan referensi data sudah dihapus). Silakan muat ulang halaman.";
+    }
     res.status(500).json({ error: errorMessage });
   }
 });
@@ -791,7 +803,7 @@ async function seedAdmin() {
 async function startServer() {
   await seedAdmin();
   const app = (0, import_express3.default)();
-  const PORT = Number(process.env.PORT) || 3e3;
+  const PORT = 3e3;
   app.use((0, import_cors.default)());
   app.use(import_express3.default.json({ limit: "50mb" }));
   app.use(import_express3.default.urlencoded({ limit: "50mb", extended: true }));
@@ -827,6 +839,26 @@ async function startServer() {
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
+  });
+  app.get("*.apk", (req, res) => {
+    const fileName = import_path.default.basename(req.path);
+    const publicPath = import_path.default.join(process.cwd(), "public", fileName);
+    const distPath = import_path.default.join(process.cwd(), "dist", fileName);
+    const options = {
+      headers: {
+        "Content-Type": "application/vnd.android.package-archive",
+        "Content-Disposition": 'attachment; filename="' + fileName + '"'
+      }
+    };
+    res.sendFile(publicPath, options, (err) => {
+      if (err) {
+        res.sendFile(distPath, options, (err2) => {
+          if (err2) {
+            res.status(404).send("File APK tidak ditemukan. Harap pastikan file APK sudah di-upload ke folder public atau dist.");
+          }
+        });
+      }
+    });
   });
   if (process.env.NODE_ENV !== "production") {
     const vite = await (0, import_vite.createServer)({

@@ -6,6 +6,9 @@ import { getAuth, createUserWithEmailAndPassword } from '../../lib/firestoreClie
 import { UserPlus, Shield, Trash2 } from 'lucide-react';
 import { useToast } from '../../providers/ToastProvider';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
+
 export default function HRAdminManager() {
   const toast = useToast();
   const [admins, setAdmins] = useState<any[]>([]);
@@ -34,7 +37,7 @@ export default function HRAdminManager() {
     try {
       const sanitizedEmail = form.email.toLowerCase().trim();
       
-      const res = await fetch('/api/admin/register', {
+      const res = await fetch(API_BASE_URL + '/api/admin/register', {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({ email: sanitizedEmail, password: form.password, name: form.name })

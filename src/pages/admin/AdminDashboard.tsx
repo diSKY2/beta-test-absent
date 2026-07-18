@@ -70,7 +70,7 @@ export default function AdminDashboard() {
   })?.name || 'Administrator Panel';
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased selection:bg-blue-600/20">
+    <div className="h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased selection:bg-blue-600/20 overflow-hidden">
       
       {/* Top Banner Control Line */}
       <div className="h-11 bg-white border-b border-slate-200 shadow-sm flex items-center justify-between px-6 z-20 shrink-0">

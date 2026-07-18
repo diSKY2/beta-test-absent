@@ -240,7 +240,7 @@ import java.util.concurrent.TimeUnit
 
 // GANTI DENGAN URL TUNNEL CLOUDFLARE KAMU!!
 // JANGAN LUPA TAMBAHKAN /api/sql/ DI BELAKANGNYA
-private const val BASE_URL = "https://gtp.alverse.qzz.io/api/sql/"
+private const val BASE_URL = "https://garudatrisulaperkasa.web.id/api/sql/"
 
 val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
 val client = OkHttpClient.Builder()
