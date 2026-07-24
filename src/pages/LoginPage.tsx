@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router';
 import { ArrowLeft, Lock, Mail, KeyRound, ShieldAlert } from 'lucide-react';
 import { motion } from 'motion/react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://garudatrisulaperkasa.web.id";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 
 export default function LoginPage() {

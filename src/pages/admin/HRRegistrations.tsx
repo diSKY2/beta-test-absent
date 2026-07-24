@@ -3,7 +3,7 @@ import { useAuth } from '../../providers/AuthProvider';
 import { useToast } from '../../providers/ToastProvider';
 import { UserCheck, XCircle, CheckCircle, Image as ImageIcon } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://garudatrisulaperkasa.web.id";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 export default function HRRegistrations() {
   const [registrations, setRegistrations] = useState<any[]>([]);
@@ -13,7 +13,7 @@ export default function HRRegistrations() {
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
-  const { auth } = useAuth();
+  const { user } = useAuth();
   const { triggerToast } = useToast();
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function HRRegistrations() {
     try {
       const [regRes, locRes, depRes, subRes] = await Promise.all([
         fetch(API_BASE_URL + '/api/admin/registrations', {
-          headers: { 'Authorization': `Bearer ${auth.token}` }
+          headers: {}
         }),
         fetch(API_BASE_URL + '/api/locations'),
         fetch(API_BASE_URL + '/api/departments'),
@@ -50,7 +50,7 @@ export default function HRRegistrations() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${auth.token}`
+          
         },
         body: JSON.stringify({ status })
       });

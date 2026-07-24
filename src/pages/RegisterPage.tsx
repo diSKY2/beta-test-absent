@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Shield, Upload } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://garudatrisulaperkasa.web.id";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 export default function RegisterPage() {
   const [nik, setNik] = useState('');

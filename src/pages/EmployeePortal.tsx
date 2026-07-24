@@ -12,7 +12,7 @@ import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capa
 import { Geolocation } from '@capacitor/geolocation';
 import { LocalNotifications } from '@capacitor/local-notifications';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://garudatrisulaperkasa.web.id";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 
 // Interfaces matching PostgreSQL Schema
@@ -244,7 +244,7 @@ export default function EmployeePortal() {
         .then(data => setAllEmployees(data.filter((e: any) => e.id !== currentEmployee?.id)))
         .catch(console.error);
     }
-  }, [showExchangeModal, employee]);
+  }, [showExchangeModal, currentEmployee]);
 
   useEffect(() => {
     if (exchangeReplacerId) {
