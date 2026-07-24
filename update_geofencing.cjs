@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+const fs = require('fs');
+
+const code = `import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../lib/firestoreClient';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from '../../lib/firestoreClient';
 import { handleFirestoreError, OperationType } from '../../lib/utils';
@@ -51,7 +53,7 @@ export default function Geofencing() {
         createdAt: Date.now(),
         updatedAt: Date.now()
       });
-      toast.success(`Lokasi "${locForm.name}" berhasil ditambahkan`);
+      toast.success(\`Lokasi "\${locForm.name}" berhasil ditambahkan\`);
       setLocForm({ name: '', latitude: '', longitude: '', radius: '' });
     } catch(err: any) {
       toast.error('Gagal menambahkan lokasi: ' + err.message);
@@ -69,7 +71,7 @@ export default function Geofencing() {
         createdAt: Date.now(),
         updatedAt: Date.now()
       });
-      toast.success(`Departemen "${deptForm.name}" berhasil ditambahkan`);
+      toast.success(\`Departemen "\${deptForm.name}" berhasil ditambahkan\`);
       setDeptForm({ name: '', locationId: '' });
     } catch(err: any) {
       toast.error('Gagal menambahkan departemen: ' + err.message);
@@ -87,7 +89,7 @@ export default function Geofencing() {
         createdAt: Date.now(),
         updatedAt: Date.now()
       });
-      toast.success(`Sub-bagian "${subForm.name}" berhasil ditambahkan`);
+      toast.success(\`Sub-bagian "\${subForm.name}" berhasil ditambahkan\`);
       setSubForm({ name: '', departmentId: '' });
     } catch(err: any) {
       toast.error('Gagal menambahkan sub-bagian: ' + err.message);
@@ -378,3 +380,6 @@ export default function Geofencing() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/pages/admin/Geofencing.tsx', code);

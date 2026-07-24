@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+const fs = require('fs');
+
+const code = `import React, { useState, useEffect } from 'react';
 import { 
   Users, Calendar, CheckSquare, Settings, PieChart, WalletCards, 
   MapPin, LogOut, Briefcase, ChevronRight, Clock, Building2,
   ShieldAlert, ArrowLeft, UserCheck, ChevronDown
 } from 'lucide-react';
-import { Link, Outlet, useLocation } from 'react-router';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../providers/AuthProvider';
 import { doc, getDoc } from 'firebase/firestore';
-// @ts-ignore
-// @ts-ignore
 import { db } from '../../lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -43,7 +43,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchCompanyProfile = async () => {
       try {
-        // @ts-ignore
         const docRef = doc(db, 'settings', 'company_profile');
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
@@ -66,21 +65,21 @@ export default function AdminDashboard() {
       desc: 'Ringkasan presensi & radar geofencing' 
     },
     {
-      group: 'Operasional',
-      icon: Briefcase,
-      items: [
-        { name: 'Rostering Bulanan', href: '/admin/rostering', desc: 'Atur shift jadwal kerja' },
-        { name: 'Sistem Approval', href: '/admin/approvals', desc: 'Validasi dokumen pengajuan' },
-        { name: 'Laporan Kerja', href: '/admin/reports', desc: 'Arsip log harian & dinas' },
-      ]
-    },
-    {
       group: 'Pegawai',
       icon: Users,
       items: [
         { name: 'Struktur & Data Pegawai', href: '/admin/organization', desc: 'Kelola divisi, jabatan & NIK' },
         { name: 'Payroll Manager (Gaji)', href: '/admin/payroll', desc: 'Rekap slip gaji otomatis' },
         { name: 'Pendaftaran Pegawai', href: '/admin/registrations', desc: 'Tinjau registrasi akun baru' },
+      ]
+    },
+    {
+      group: 'Operasional',
+      icon: Briefcase,
+      items: [
+        { name: 'Rostering Bulanan', href: '/admin/rostering', desc: 'Atur shift jadwal kerja' },
+        { name: 'Sistem Approval', href: '/admin/approvals', desc: 'Validasi dokumen pengajuan' },
+        { name: 'Laporan Kerja', href: '/admin/reports', desc: 'Arsip log harian & dinas' },
       ]
     },
     { 
@@ -213,7 +212,7 @@ export default function AdminDashboard() {
                         <GroupIcon className="w-4 h-4" />
                         <span>{nav.group}</span>
                       </div>
-                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={\`w-4 h-4 transition-transform duration-200 \${isOpen ? 'rotate-180' : ''}\`} />
                     </button>
                     
                     <AnimatePresence>
@@ -230,11 +229,11 @@ export default function AdminDashboard() {
                               <Link
                                 key={item.name}
                                 to={item.href}
-                                className={`group relative flex items-center gap-3 pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all ${
+                                className={\`group relative flex items-center gap-3 pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all \${
                                   isActive 
                                     ? 'bg-blue-50 text-blue-800 border border-blue-100 shadow-sm' 
                                     : 'text-slate-600 hover:bg-slate-50 hover:text-blue-700'
-                                }`}
+                                }\`}
                               >
                                 {isActive && (
                                   <motion.div 
@@ -245,7 +244,7 @@ export default function AdminDashboard() {
                                 )}
                                 <div className="flex flex-col">
                                   <span className="font-bold">{item.name}</span>
-                                  <span className={`text-[10px] font-medium mt-0.5 ${isActive ? 'text-blue-600/70' : 'text-slate-400 group-hover:text-blue-500/70'}`}>
+                                  <span className={\`text-[10px] font-medium mt-0.5 \${isActive ? 'text-blue-600/70' : 'text-slate-400 group-hover:text-blue-500/70'}\`}>
                                     {item.desc}
                                   </span>
                                 </div>
@@ -266,11 +265,11 @@ export default function AdminDashboard() {
                 <Link
                   key={nav.name}
                   to={nav.href!}
-                  className={`group relative flex items-center gap-4 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all ${
+                  className={\`group relative flex items-center gap-4 px-4 py-3 rounded-xl text-xs font-bold tracking-wide transition-all \${
                     isActive 
                       ? 'bg-blue-50 text-blue-800 border border-blue-100 shadow-sm' 
                       : 'text-slate-600 hover:bg-slate-50 hover:text-blue-700'
-                  }`}
+                  }\`}
                 >
                   {isActive && (
                     <motion.div 
@@ -279,11 +278,11 @@ export default function AdminDashboard() {
                       transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     />
                   )}
-                  {Icon && <Icon className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-105 duration-200 ${isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-blue-600'}`} strokeWidth={2.2} />}
+                  {Icon && <Icon className={\`w-5 h-5 shrink-0 transition-transform group-hover:scale-105 duration-200 \${isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-blue-600'}\`} strokeWidth={2.2} />}
                   
                   <div className="flex flex-col">
                     <span className="font-bold">{nav.name}</span>
-                    <span className={`text-[10px] font-medium mt-0.5 ${isActive ? 'text-blue-600/70' : 'text-slate-400 group-hover:text-blue-500/70'}`}>
+                    <span className={\`text-[10px] font-medium mt-0.5 \${isActive ? 'text-blue-600/70' : 'text-slate-400 group-hover:text-blue-500/70'}\`}>
                       {nav.desc}
                     </span>
                   </div>
@@ -343,3 +342,5 @@ export default function AdminDashboard() {
     </div>
   );
 }
+`;
+fs.writeFileSync('src/pages/admin/AdminDashboard.tsx', code);

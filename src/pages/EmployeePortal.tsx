@@ -203,8 +203,119 @@ export default function EmployeePortal() {
   
   const [reportText, setReportText] = useState('');
   const [reportPhoto, setReportPhoto] = useState<string | null>(null);
+  const [exchangeList, setExchangeList] = useState<any[]>([]);
+  const [showExchangeModal, setShowExchangeModal] = useState(false);
+  const [exchangeReplacerId, setExchangeReplacerId] = useState('');
+  const [exchangeDateReplace, setExchangeDateReplace] = useState('');
+  const [exchangeDatePayback, setExchangeDatePayback] = useState('');
+  const [exchangeReason, setExchangeReason] = useState('');
+  const [exchangeTab, setExchangeTab] = useState<'request' | 'history'>('request');
+  const [allEmployees, setAllEmployees] = useState<any[]>([]);
+  const [replacerSchedules, setReplacerSchedules] = useState<any[]>([]);
+  const [myFutureSchedules, setMyFutureSchedules] = useState<any[]>([]);
+
 
   // Show customized floating toast
+  
+  const fetchShiftExchanges = async () => {
+    if (!currentEmployee) return;
+    try {
+      const res = await fetch(API_BASE_URL + '/api/shift-exchanges/me/' + currentEmployee.id);
+      if (res.ok) {
+        setExchangeList(await res.json());
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchAllEmployees = async () => {
+    try {
+      const res = await fetch(API_BASE_URL + '/api/employees-list'); // Need this endpoint or just fetch from /api/employees ? 
+      // I'll create a lightweight endpoint for employee dropdown or reuse existing if there is one.
+    } catch (err) { }
+  };
+  
+  useEffect(() => {
+    if (showExchangeModal) {
+      fetchShiftExchanges();
+      fetch(API_BASE_URL + '/api/employees')
+        .then(res => res.json())
+        .then(data => setAllEmployees(data.filter((e: any) => e.id !== currentEmployee?.id)))
+        .catch(console.error);
+    }
+  }, [showExchangeModal, employee]);
+
+  useEffect(() => {
+    if (exchangeReplacerId) {
+      fetch(API_BASE_URL + '/api/schedules/employee/' + exchangeReplacerId)
+        .then(res => res.json())
+        .then(data => {
+            const future = data.filter((s: any) => new Date(s.date) >= new Date() && !s.isOffDay);
+            setReplacerSchedules(future);
+        })
+        .catch(console.error);
+    } else {
+      setReplacerSchedules([]);
+    }
+  }, [exchangeReplacerId]);
+
+  const handleSubmitExchange = async () => {
+    if (!exchangeReplacerId || !exchangeDateReplace || !exchangeDatePayback || !exchangeReason) {
+      return triggerToast('Mohon lengkapi semua form tukar jadwal');
+    }
+    
+    // Find the dates from schedule IDs
+    const mySchedule = myFutureSchedules.find(s => s.id === exchangeDateReplace);
+    const repSchedule = replacerSchedules.find(s => s.id === exchangeDatePayback);
+    
+    if (!mySchedule || !repSchedule) return;
+
+    try {
+      const res = await fetch(API_BASE_URL + '/api/shift-exchanges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requesterId: currentEmployee?.id,
+          replacerId: exchangeReplacerId,
+          dateToReplace: mySchedule.date,
+          dateToPayback: repSchedule.date,
+          reason: exchangeReason
+        })
+      });
+      if (res.ok) {
+        triggerToast('Pengajuan tukar jadwal terkirim ke rekan Anda');
+        setExchangeReplacerId('');
+        setExchangeDateReplace('');
+        setExchangeDatePayback('');
+        setExchangeReason('');
+        setExchangeTab('history');
+        fetchShiftExchanges();
+      } else {
+        triggerToast('Gagal mengajukan tukar jadwal');
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast('Gagal terhubung ke server');
+    }
+  };
+
+  const handleUpdateExchangeStatus = async (id: string, status: string) => {
+    try {
+      const res = await fetch(API_BASE_URL + '/api/shift-exchanges/' + id + '/status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        triggerToast('Status tukar jadwal berhasil diperbarui');
+        fetchShiftExchanges();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const triggerToast = (msg: string) => {
     setActiveToast(msg);
     setTimeout(() => {
@@ -449,99 +560,28 @@ export default function EmployeePortal() {
 
       // 2. Compute dynamic 7-day schedule
       if (shouldFetchStatic) {
-        let shiftTypes = data.shiftTypes || [];
-        let pattern = data.shiftPatterns && data.shiftPatterns.length > 0 ? data.shiftPatterns[0] : null;
-        let overrides = data.overrides || [];
-
-        const formatTimeStr = (tStr: string) => {
-          if (!tStr) return "08:00";
-          if (tStr.includes('T')) {
-            const parts = tStr.split('T')[1];
-            if (parts) return parts.substring(0, 5);
-          }
-          return tStr.substring(0, 5);
-        };
-
-        // Generate 7 days starting from today (dynamic future schedule)
-        const computedSchedules: Schedule[] = [];
-        const today = new Date();
-
-        for (let i = 0; i < 7; i++) {
-          const targetDate = new Date();
-          targetDate.setDate(today.getDate() + i);
-
-          // Format as YYYY-MM-DD for checking overrides
-          const yyyy = targetDate.getFullYear();
-          const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
-          const dd = String(targetDate.getDate()).padStart(2, '0');
-          const dateStr = `${yyyy}-${mm}-${dd}`;
-
-          // Find if there is an override for this date
-          const override = overrides.find((o: any) => {
-            const oDate = new Date(o.overrideDate);
-            const oY = oDate.getFullYear();
-            const oM = String(oDate.getMonth() + 1).padStart(2, '0');
-            const oD = String(oDate.getDate()).padStart(2, '0');
-            return `${oY}-${oM}-${oD}` === dateStr;
-          });
-
-          let activeShift: any = null;
-          if (override) {
-            activeShift = shiftTypes.find((s: any) => s.id === override.shiftTypeId);
-          }
-
-          // If no override, calculate from shift pattern
-          if (!activeShift && pattern && pattern.sequence && pattern.sequence.length > 0) {
-            const pDate = new Date(pattern.startDate);
-
-            // Calculate difference in calendar days
-            const tDateReset = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-            const pDateReset = new Date(pDate.getFullYear(), pDate.getMonth(), pDate.getDate());
-            const diffTime = tDateReset.getTime() - pDateReset.getTime();
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-            if (diffDays >= 0) {
-              const index = diffDays % pattern.sequence.length;
-              const shiftId = pattern.sequence[index];
-              activeShift = shiftTypes.find((s: any) => s.id === shiftId);
-            }
-          }
-
-          // Fallback if no pattern or shift found
-          if (!activeShift) {
-            const defaultShifts = [
-              { name: 'SHIFT PAGI', start: '08:00', end: '16:00', off: false },
-              { name: 'SHIFT PAGI', start: '08:00', end: '16:00', off: false },
-              { name: 'SHIFT SIANG', start: '16:00', end: '24:00', off: false },
-              { name: 'SHIFT SIANG', start: '16:00', end: '24:00', off: false },
-              { name: 'SHIFT MALAM', start: '00:00', end: '08:00', off: false },
-              { name: 'SHIFT MALAM', start: '00:00', end: '08:00', off: false },
-              { name: 'LIBUR MINGGUAN', start: 'Libur', end: 'Libur', off: true },
-            ];
-            const fallback = defaultShifts[i % 7];
-            computedSchedules.push({
-              id: `fallback-${dateStr}`,
-              employeeId: currentEmployee.id,
-              date: targetDate.toISOString(),
-              shiftName: fallback.name,
-              shiftStart: fallback.start,
-              shiftEnd: fallback.end,
-              isOffDay: fallback.off
-            });
-          } else {
-            computedSchedules.push({
-              id: `computed-${dateStr}`,
-              employeeId: currentEmployee.id,
-              date: targetDate.toISOString(),
-              shiftName: activeShift.name,
-              shiftStart: activeShift.isOffDay ? "Libur" : formatTimeStr(activeShift.startTime),
-              shiftEnd: activeShift.isOffDay ? "Libur" : formatTimeStr(activeShift.endTime),
-              isOffDay: activeShift.isOffDay
-            });
-          }
-        }
-
-        setSchedulesList(computedSchedules);
+         try {
+           const schRes = await fetch(API_BASE_URL + '/api/schedules/employee/' + currentEmployee.id);
+           if (schRes.ok) {
+              const computedSchedules = await schRes.json();
+              const today = new Date();
+              today.setHours(0,0,0,0);
+              const nextWeek = new Date(today);
+              nextWeek.setDate(today.getDate() + 7);
+              
+              const dashboardSchedules = computedSchedules.filter((s: any) => {
+                 const sDate = new Date(s.date);
+                 return sDate >= today && sDate < nextWeek;
+              });
+              setSchedulesList(dashboardSchedules);
+              
+              const futureSchedules = computedSchedules.filter((s: any) => {
+                 const sDate = new Date(s.date);
+                 return sDate >= today && !s.isOffDay;
+              });
+              setMyFutureSchedules(futureSchedules);
+           }
+         } catch(e) { console.error(e); }
       }
 
       // 3. Fetch today's attendance state
@@ -1516,10 +1556,8 @@ export default function EmployeePortal() {
                     </>
                   )}
                 </button>
+                
               </form>
-
-
-
             </div>
           ) : currentEmployee && currentEmployee.status && currentEmployee.status !== 'Aktif' ? (
             /* --- 3. BLOCKED INACTIVE ACCOUNT SCREEN --- */
@@ -2201,7 +2239,14 @@ export default function EmployeePortal() {
               {activeTab === 'jadwal' && (
                 <div className="flex-grow overflow-y-auto p-4.5 pb-24 space-y-5 animate-fade-in no-scrollbar min-h-0">
                   <div className="space-y-1">
-                    <h3 className="text-sm font-black text-[#0C2461] uppercase tracking-tight">Schedules & Shift Roster</h3>
+                    
+<div className="flex items-center justify-between">
+  <h3 className="text-sm font-black text-[#0C2461] uppercase tracking-tight">Schedules & Shift Roster</h3>
+  <button onClick={() => setShowExchangeModal(true)} className="px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-lg shadow-sm border border-blue-200 active:scale-95 transition-all">
+    Tukar Jadwal
+  </button>
+</div>
+
                     <p className="text-xs text-slate-500">Berikut pembagian jadwal roster shift kerja Anda.</p>
                   </div>
 

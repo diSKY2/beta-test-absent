@@ -1,0 +1,4 @@
+const fs = require('fs');
+let code = fs.readFileSync('src/pages/EmployeePortal.tsx', 'utf8');
+code = code.replace('Masuk Aplikasi\n                    </>\n                  )}\n                </button>\n              </form>\n            </div>\n          ) : currentEmployee && currentEmployee.status && currentEmployee.status !== \'Aktif\' ? (', 'Masuk Aplikasi\n                    </>\n                  )}\n                </button>\n                <div className="mt-5 text-center">\n                  <a href="/register" className="text-xs font-semibold text-[#0C2461] hover:text-blue-800 underline decoration-[#0C2461]/30 underline-offset-4">\n                    Belum punya akun? Daftar Pegawai Baru\n                  </a>\n                </div>\n              </form>\n            </div>\n          ) : currentEmployee && currentEmployee.status && currentEmployee.status !== \'Aktif\' ? (');
+fs.writeFileSync('src/pages/EmployeePortal.tsx', code);

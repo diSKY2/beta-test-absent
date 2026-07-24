@@ -321,6 +321,12 @@ export default function LandingPage() {
                 <span>Download APK</span>
               </a>
               <Link 
+                to="/register" 
+                className="group flex items-center gap-1.5 bg-blue-100 text-blue-900 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-200 active:scale-95 transition-all shadow-md hover:shadow-lg border-b-4 border-blue-300"
+              >
+                <span>Daftar Pegawai</span>
+              </Link>
+              <Link 
                 to="/login" 
                 className="group flex items-center gap-1.5 bg-[#0C2461] text-white px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-600 active:scale-95 transition-all shadow-md hover:shadow-lg border-b-4 border-red-700 hover:border-red-800"
               >

@@ -12,7 +12,7 @@ if ((window as any).Capacitor && (window as any).Capacitor.isNativePlatform()) {
     let url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     
     if (url.startsWith('/api')) {
-      url = `url web${url}`;
+      url = `https://garudatrisulaperkasa.web.id${url}`;
       if (typeof input === 'string') {
         input = url;
       } else if (input instanceof Request) {

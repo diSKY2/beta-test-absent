@@ -189,3 +189,32 @@ export const agendas = pgTable('agendas', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const employeeRegistrations = pgTable('employee_registrations', {
+  id: varchar('id', { length: 50 }).primaryKey(),
+  nik: varchar('nik', { length: 50 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  password: varchar('password', { length: 100 }).notNull(),
+  phone: varchar('phone', { length: 50 }).notNull(),
+  locationId: varchar('location_id', { length: 50 }).notNull(),
+  departmentId: varchar('department_id', { length: 50 }).notNull(),
+  subDepartmentId: varchar('sub_department_id', { length: 50 }).notNull(),
+  role: varchar('role', { length: 100 }).notNull(),
+  profilePicUrl: text('profile_pic_url'),
+  status: varchar('status', { length: 50 }).default('Pending'), // Pending, Approved, Rejected
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+
+export const shiftExchangeStatusEnum = pgEnum('shift_exchange_status', ['Pending_Replacer', 'Pending_Danru', 'Approved', 'Rejected']);
+
+export const shiftExchanges = pgTable('shift_exchanges', {
+  id: varchar('id', { length: 50 }).primaryKey(),
+  requesterId: varchar('requester_id', { length: 50 }).notNull().references(() => employees.id, { onDelete: 'cascade' }),
+  replacerId: varchar('replacer_id', { length: 50 }).notNull().references(() => employees.id, { onDelete: 'cascade' }),
+  dateToReplace: timestamp('date_to_replace').notNull(), // Tanggal dimana Requester digantikan oleh Replacer
+  dateToPayback: timestamp('date_to_payback').notNull(), // Tanggal dimana Replacer digantikan oleh Requester (pelunasan)
+  status: shiftExchangeStatusEnum('status').default('Pending_Replacer'),
+  reason: text('reason'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});

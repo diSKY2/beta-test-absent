@@ -180,11 +180,13 @@ export default function LoginPage() {
                 </span>
               )}
             </button>
-          </form>
-
-
-
-        </div>
+          <div className="mt-6 text-center">
+            <a href="/register" className="text-sm font-semibold text-blue-700 hover:text-blue-900 hover:underline">
+              Pegawai Baru? Daftar di sini
+            </a>
+          </div>
+        </form>
+      </div>
       </div>
     </div>
   );

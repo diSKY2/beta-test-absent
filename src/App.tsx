@@ -18,8 +18,10 @@ import OrgStructure from './pages/admin/OrgStructure';
 import Geofencing from './pages/admin/Geofencing';
 import CMS from './pages/admin/CMS';
 import HRAdminManager from './pages/admin/HRAdminManager';
+import HRRegistrations from './pages/admin/HRRegistrations';
 import WorkReports from './pages/admin/WorkReports';
 import EmployeePortal from './pages/EmployeePortal';
+import RegisterPage from './pages/RegisterPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, loading } = useAuth();
@@ -54,6 +56,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
             <Route path="/pegawai" element={<EmployeePortal />} />
             <Route 
               path="/admin" 
@@ -71,6 +74,7 @@ export default function App() {
               <Route path="geofencing" element={<Geofencing />} />
               <Route path="reports" element={<WorkReports />} />
               <Route path="hr-users" element={<HRAdminManager />} />
+              <Route path="registrations" element={<HRRegistrations />} />
               <Route path="settings" element={<CMS />} />
             </Route>
           </Routes>
