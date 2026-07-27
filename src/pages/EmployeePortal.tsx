@@ -709,7 +709,13 @@ export default function EmployeePortal() {
         body: JSON.stringify({ nik: trimmedNik, password })
       });
       
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`Terjadi kesalahan server (${response.status}). Silakan coba lagi.`);
+      }
       
       if (!response.ok) {
         setLoginError(data.error || 'Autentikasi gagal. Silakan periksa NIK dan password.');

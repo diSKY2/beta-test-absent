@@ -47,13 +47,39 @@ export default function RegisterPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        setError('Ukuran foto maksimal 2MB');
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Ukuran file foto terlalu besar (Maksimal 5MB)');
         return;
       }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePicUrl(reader.result as string);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 800;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.6);
+            setProfilePicUrl(compressed);
+          } else {
+            setProfilePicUrl(event.target?.result as string);
+          }
+        };
+        img.src = event.target?.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -80,10 +106,19 @@ export default function RegisterPage() {
         }),
       });
       
-      const data = await res.json();
+      const responseText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        if (res.status === 413) {
+          throw new Error('Ukuran foto terlalu besar untuk dikirim. Silakan pilih foto lain.');
+        }
+        throw new Error(`Terjadi kesalahan pada server (${res.status}). Silakan coba lagi.`);
+      }
       
       if (!res.ok) {
-        throw new Error(data.error || 'Gagal mendaftar');
+        throw new Error(data.error || 'Gagal mendaftar. Silakan periksa kembali data Anda.');
       }
       
       setSuccess(true);

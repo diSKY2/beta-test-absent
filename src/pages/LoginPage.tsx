@@ -27,7 +27,13 @@ export default function LoginPage() {
         body: JSON.stringify({ email: trimmedEmail, password })
       });
       
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`Terjadi kesalahan server (${response.status}). Silakan coba lagi.`);
+      }
       
       if (!response.ok) {
         if (data.error === 'Kredensial tidak valid' && trimmedEmail === 'admin@perusahaan.com' && password === 'admin123') {
