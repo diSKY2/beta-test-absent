@@ -845,9 +845,11 @@ export default function EmployeePortal() {
 
     if (attendanceModalType === 'masuk') {
       // Clock In
+      const isRetrying = !isGroupAttendance && todayAttendance?.status === 'Ditolak';
       const payload = {
-        action: 'addDoc',
+        action: isRetrying ? 'updateDoc' : 'addDoc',
         collection: 'attendances',
+        docId: isRetrying ? todayAttendance.id : undefined,
         data: {
           employeeId: targetEmployeeId,
           attendanceDate: new Date(),
@@ -861,14 +863,18 @@ export default function EmployeePortal() {
 
       // --- OPTIMISTIC UI UPDATE ---
       const optimisticAtt = {
-        id: 'temp-' + Date.now(),
+        id: isRetrying ? todayAttendance.id : 'temp-' + Date.now(),
         ...payload.data,
         attendanceDate: payload.data.attendanceDate.toISOString(),
       };
       
       if (!isGroupAttendance) {
         setTodayAttendance(optimisticAtt as any);
-        setAttendancesHistory(prev => [optimisticAtt as any, ...prev]);
+        if (isRetrying) {
+          setAttendancesHistory(prev => prev.map(a => a.id === todayAttendance.id ? (optimisticAtt as any) : a));
+        } else {
+          setAttendancesHistory(prev => [optimisticAtt as any, ...prev]);
+        }
       } else {
         setTeamAttendances(prev => [optimisticAtt as any, ...prev]);
       }
@@ -1758,9 +1764,15 @@ export default function EmployeePortal() {
                           <CalendarDays className="w-4 h-4 text-slate-400" />
                           <span>{getTodayStatusInfo().isApprovedLeave ? 'Sedang Cuti / Izin' : 'Hari Ini Libur (Jadwal)'}</span>
                         </div>
-                      ) : !todayAttendance ? (
+                      ) : (!todayAttendance || todayAttendance.status === 'Ditolak') ? (
                         /* Case 2: Clock-In is needed */
                         <div className="space-y-2">
+                          {todayAttendance?.status === 'Ditolak' && (
+                            <div className="w-full bg-rose-50 text-rose-600 py-3 px-4 rounded-xl text-xs font-bold border border-rose-200 mb-2 flex flex-col items-center justify-center text-center">
+                              <span>Absen sebelumnya ditolak.</span>
+                              <span className="font-normal text-[10px]">Silakan melakukan absen masuk kembali.</span>
+                            </div>
+                          )}
                           {getAttendanceButtonState().isEnabled ? (
                             <button
                               onClick={() => handleOpenAttendanceModal('masuk')}
@@ -1779,7 +1791,7 @@ export default function EmployeePortal() {
                             </div>
                           )}
                         </div>
-                      ) : !todayAttendance.timeOut ? (
+                      ) : (!todayAttendance.timeOut && todayAttendance.status !== 'Ditolak') ? (
                         /* Case 3: Clock-In is successful, waiting for Clock-Out */
                         <div className="space-y-2">
                           <div className="w-full bg-emerald-50 text-emerald-800 py-3.5 px-4 rounded-2xl text-xs font-black uppercase tracking-widest border border-emerald-100 flex items-center justify-center gap-2">
@@ -1975,7 +1987,7 @@ export default function EmployeePortal() {
                             }
                             return;
                           }
-                          handleOpenAttendanceModal(!todayAttendance ? 'masuk' : 'pulang');
+                          handleOpenAttendanceModal(!todayAttendance || todayAttendance.status === 'Ditolak' ? 'masuk' : 'pulang');
                         }}
                         className="bg-white hover:bg-slate-50 border border-slate-200/80 p-4 rounded-3xl text-left shadow-sm hover:border-[#14B8A6] transition-all group flex flex-col justify-between h-28 cursor-pointer relative overflow-hidden"
                       >
