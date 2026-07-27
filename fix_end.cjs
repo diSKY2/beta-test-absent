@@ -1,18 +1,10 @@
 const fs = require('fs');
 let code = fs.readFileSync('src/pages/EmployeePortal.tsx', 'utf8');
 
-// Replace everything after </AnimatePresence>
-const idx = code.lastIndexOf('</AnimatePresence>');
-if (idx !== -1) {
-  code = code.substring(0, idx + '</AnimatePresence>'.length) + `
-        </div>
-      </div>
-    </div>
-  );
-}
-`;
+// Find the last AnimatePresence
+const lastIndex = code.lastIndexOf('</AnimatePresence>');
+if (lastIndex !== -1) {
+  code = code.substring(0, lastIndex + '</AnimatePresence>'.length);
+  code += `\n      {/* ========================================================================= */}\n    </div>\n    </div>\n  );\n};\n\nexport default EmployeePortal;\n`;
   fs.writeFileSync('src/pages/EmployeePortal.tsx', code);
-  console.log('Fixed end of file');
-} else {
-  console.log('Could not find </AnimatePresence>');
 }

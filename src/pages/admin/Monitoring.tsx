@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { Download, Search, MapPin, ChevronDown, ChevronRight, Bell, ArrowRight, Layers, Building, Users } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../../lib/utils';
+import { deleteDoc, doc } from '../../lib/firestoreClient';
 import { auth } from '../../lib/firestoreClient';
 import { useToast } from '../../providers/ToastProvider';
 
@@ -28,6 +29,19 @@ export default function Monitoring() {
   const [expandedLocs, setExpandedLocs] = useState<Record<string, boolean>>({});
   const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({});
   const [expandedSubDepts, setExpandedSubDepts] = useState<Record<string, boolean>>({});
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const handleResetAbsen = async (attendanceId: string) => {
+    if (!confirm("Apakah Anda yakin ingin membatalkan/mereset absensi karyawan ini?")) return;
+    try {
+      await deleteDoc(doc(db, 'attendances', attendanceId));
+      toast.triggerToast('Absensi berhasil direset/dihapus.');
+      // Update state directly for quick UI update
+      setAttendances(prev => prev.filter(a => a.id !== attendanceId));
+    } catch (err: any) {
+      toast.triggerToast('Gagal mereset absensi: ' + err.message);
+    }
+  };
+
 
   const toggleLoc = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -609,6 +623,7 @@ export default function Monitoring() {
                                               <th className="px-4 py-3 font-semibold w-36">Lembur Masuk</th>
                                               <th className="px-4 py-3 font-semibold w-36">Lembur Pulang</th>
                                               <th className="px-4 py-3 font-semibold w-48">Lokasi GPS & Radius</th>
+<th className="px-4 py-3 font-semibold w-24">Aksi</th>
                                             </tr>
                                           </thead>
                                           <tbody className="divide-y divide-slate-200/80">
@@ -648,9 +663,9 @@ export default function Monitoring() {
                                                       <div className="flex items-center gap-2">
                                                         <span>{a.timeIn || '--:--'}</span>
                                                         {(a.photoUrlIn || a.photoUrl) ? (
-                                                          <a href={a.photoUrlIn || a.photoUrl} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
+                                                          <button onClick={() => setSelectedPhoto(a.photoUrlIn || a.photoUrl)} className="inline-block relative group cursor-pointer">
                                                             <img src={a.photoUrlIn || a.photoUrl} alt="Selfie In" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-300 hover:border-teal-500" />
-                                                          </a>
+                                                          </button>
                                                         ) : (
                                                           <span className="text-[9px] text-slate-600 bg-slate-100 px-1 py-0.5 rounded">No Photo</span>
                                                         )}
@@ -660,9 +675,9 @@ export default function Monitoring() {
                                                       <div className="flex items-center gap-2">
                                                         <span>{a.timeOut || '--:--'}</span>
                                                         {a.photoUrlOut ? (
-                                                          <a href={a.photoUrlOut} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
+                                                          <button onClick={() => setSelectedPhoto(a.photoUrlOut)} className="inline-block relative group cursor-pointer">
                                                             <img src={a.photoUrlOut} alt="Selfie Out" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-300 hover:border-teal-500" />
-                                                          </a>
+                                                          </button>
                                                         ) : (
                                                           <span className="text-[9px] text-slate-600 bg-slate-100 px-1 py-0.5 rounded">No Photo</span>
                                                         )}
@@ -683,9 +698,9 @@ export default function Monitoring() {
                                                       <div className="flex items-center gap-2">
                                                         <span>{a.overtimeIn || '--:--'}</span>
                                                         {a.photoUrlOvertimeIn ? (
-                                                          <a href={a.photoUrlOvertimeIn} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
+                                                          <button onClick={() => setSelectedPhoto(a.photoUrlOvertimeIn)} className="inline-block relative group cursor-pointer">
                                                             <img src={a.photoUrlOvertimeIn} alt="Selfie OT In" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-300 hover:border-teal-500" />
-                                                          </a>
+                                                          </button>
                                                         ) : (
                                                           <span className="text-[9px] text-slate-600 bg-slate-100 px-1 py-0.5 rounded">No Photo</span>
                                                         )}
@@ -695,9 +710,9 @@ export default function Monitoring() {
                                                       <div className="flex items-center gap-2">
                                                         <span>{a.overtimeOut || '--:--'}</span>
                                                         {a.photoUrlOvertimeOut ? (
-                                                          <a href={a.photoUrlOvertimeOut} target="_blank" rel="noopener noreferrer" className="inline-block relative group">
+                                                          <button onClick={() => setSelectedPhoto(a.photoUrlOvertimeOut)} className="inline-block relative group cursor-pointer">
                                                             <img src={a.photoUrlOvertimeOut} alt="Selfie OT Out" referrerPolicy="no-referrer" className="w-7 h-7 rounded object-cover border border-slate-300 hover:border-teal-500" />
-                                                          </a>
+                                                          </button>
                                                         ) : (
                                                           <span className="text-[9px] text-slate-600 bg-slate-100 px-1 py-0.5 rounded">No Photo</span>
                                                         )}
@@ -717,6 +732,18 @@ export default function Monitoring() {
                                                        <span className="text-slate-600 italic">GPS N/A</span>
                                                      )}
                                                    </td>
+
+  <td className="px-4 py-3 text-center">
+    {a.id && (
+      <button
+        onClick={() => handleResetAbsen(a.id)}
+        className="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 font-bold rounded text-[10px] uppercase tracking-wider transition-colors"
+      >
+        Tolak / Reset
+      </button>
+    )}
+  </td>
+
                                                  </tr>
                                                );
                                             })}
@@ -744,6 +771,27 @@ export default function Monitoring() {
           )}
         </div>
       </div>
+
+      {selectedPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setSelectedPhoto(null)}>
+          <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
+            <button 
+              className="absolute -top-4 -right-4 w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center font-bold shadow-lg hover:bg-red-700 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedPhoto(null);
+              }}
+            >
+              ×
+            </button>
+            <img src={selectedPhoto} alt="Bukti Foto Besar" referrerPolicy="no-referrer" className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain border-4 border-white/10" />
+            <div className="mt-4 text-white font-mono text-sm uppercase tracking-widest bg-black/50 px-4 py-2 rounded-full border border-white/20">
+              Bukti Foto Absensi
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
