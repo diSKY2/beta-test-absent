@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../src/db';
 import { locations, departments, subDepartments, employees, employeeAllowances, employeeDeductions, admins, employeeRegistrations, shiftExchanges, schedules } from '../src/db/schema';
-import { eq, or, and } from 'drizzle-orm';
+import { eq, or, and, inArray } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 
 export const apiRouter = express.Router();
@@ -453,13 +453,69 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
     if (empData.length === 0) return res.json([]);
     const emp = empData[0];
     
-    const sTypes = await db.select().from(shiftTypes).where(eq(shiftTypes.subDepartmentId, emp.subDepartmentId));
-    const patterns = await db.select().from(shiftPatterns).where(eq(shiftPatterns.subDepartmentId, emp.subDepartmentId));
-    const pattern = patterns.length > 0 ? patterns[0] : null;
-    const overrides = await db.select().from(subdeptScheduleOverrides).where(eq(subdeptScheduleOverrides.subDepartmentId, emp.subDepartmentId));
-    
+    // Cache subDepartment shift types, patterns, and overrides to reduce DB load
+    const subDeptCache = new Map<string, { sTypes: any[]; pattern: any; overrides: any[] }>();
+
+    const getSubDeptData = async (sId: string) => {
+      if (subDeptCache.has(sId)) return subDeptCache.get(sId)!;
+      const st = await db.select().from(shiftTypes).where(eq(shiftTypes.subDepartmentId, sId));
+      const ptList = await db.select().from(shiftPatterns).where(eq(shiftPatterns.subDepartmentId, sId));
+      const pt = ptList.length > 0 ? ptList[0] : null;
+      const ov = await db.select().from(subdeptScheduleOverrides).where(eq(subdeptScheduleOverrides.subDepartmentId, sId));
+      const data = { sTypes: st, pattern: pt, overrides: ov };
+      subDeptCache.set(sId, data);
+      return data;
+    };
+
+    const getRawShiftForSubDept = async (sId: string, targetDate: Date, dateStr: string) => {
+      const { sTypes, pattern, overrides } = await getSubDeptData(sId);
+      let activeShift = null;
+
+      const override = overrides.find(o => {
+        const oDate = new Date(o.overrideDate);
+        return oDate.toISOString().split('T')[0] === dateStr;
+      });
+
+      if (override) {
+        activeShift = sTypes.find(s => s.id === override.shiftTypeId);
+      }
+
+      if (!activeShift && pattern) {
+        const sequence = Array.isArray(pattern.sequence) ? pattern.sequence : [];
+        if (sequence.length > 0) {
+          const cycleLength = sequence.length;
+          const refDate = new Date(pattern.startDate);
+          refDate.setHours(0,0,0,0);
+          const diffTime = targetDate.getTime() - refDate.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+
+          if (diffDays >= 0) {
+            const dayInCycle = diffDays % cycleLength;
+            const shiftId = sequence[dayInCycle];
+            if (shiftId && shiftId !== 'off') {
+              activeShift = sTypes.find(s => s.id === shiftId);
+            }
+          }
+        }
+      }
+
+      return activeShift;
+    };
+
     const exchanges = await db.select().from(shiftExchanges)
       .where(and(eq(shiftExchanges.status, 'Approved'), or(eq(shiftExchanges.requesterId, id), eq(shiftExchanges.replacerId, id))));
+
+    // Collect all other employee IDs involved in exchanges
+    const otherEmpIds = Array.from(new Set(
+      exchanges.flatMap(ex => [ex.requesterId, ex.replacerId]).filter(eId => eId && eId !== id)
+    ));
+    const empSubDeptMap = new Map<string, string>();
+    empSubDeptMap.set(id, emp.subDepartmentId);
+
+    if (otherEmpIds.length > 0) {
+      const otherEmps = await db.select().from(employees).where(inArray(employees.id, otherEmpIds));
+      otherEmps.forEach(e => empSubDeptMap.set(e.id, e.subDepartmentId));
+    }
 
     const formatTimeStr = (tStr: string) => {
       if (!tStr) return "08:00";
@@ -478,8 +534,6 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
       const targetDate = new Date(today);
       targetDate.setDate(today.getDate() + i);
       const dateStr = targetDate.toISOString().split('T')[0];
-      
-      let activeShift = null;
       
       const isReplaced = exchanges.find(ex => {
         const exDateR = new Date(ex.dateToReplace).toISOString().split('T')[0];
@@ -504,45 +558,39 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
       });
       
       if (isReplacing) {
-        computed.push({
-          id: 'ex-in-' + dateStr,
-          date: targetDate.toISOString(),
-          shiftName: 'Shift Pengganti',
-          shiftStart: '08:00',
-          shiftEnd: '16:00',
-          isOffDay: false
-        });
+        const isPaybackDate = new Date(isReplacing.dateToPayback).toISOString().split('T')[0] === dateStr;
+        const personBeingReplacedId = (isReplacing.requesterId === id && isPaybackDate)
+          ? isReplacing.replacerId
+          : isReplacing.requesterId;
+
+        const replacedSubDeptId = empSubDeptMap.get(personBeingReplacedId) || emp.subDepartmentId;
+        const replacedShift = await getRawShiftForSubDept(replacedSubDeptId, targetDate, dateStr);
+
+        if (replacedShift && !replacedShift.isOffDay) {
+          computed.push({
+            id: 'ex-in-' + dateStr,
+            date: targetDate.toISOString(),
+            shiftTypeId: replacedShift.id,
+            shiftName: `Pengganti (${replacedShift.name})`,
+            shiftStart: formatTimeStr(replacedShift.startTime),
+            shiftEnd: formatTimeStr(replacedShift.endTime),
+            isOffDay: false
+          });
+        } else {
+          computed.push({
+            id: 'ex-in-' + dateStr,
+            date: targetDate.toISOString(),
+            shiftName: 'Shift Pengganti',
+            shiftStart: '08:00',
+            shiftEnd: '16:00',
+            isOffDay: false
+          });
+        }
         continue;
       }
 
-      const override = overrides.find(o => {
-        const oDate = new Date(o.overrideDate);
-        return oDate.toISOString().split('T')[0] === dateStr;
-      });
-      
-      if (override) {
-        activeShift = sTypes.find(s => s.id === override.shiftTypeId);
-      }
-      
-      if (!activeShift && pattern) {
-        const sequence = Array.isArray(pattern.sequence) ? pattern.sequence : [];
-        if (sequence.length > 0) {
-          const cycleLength = sequence.length;
-          const refDate = new Date(pattern.startDate);
-          refDate.setHours(0,0,0,0);
-          const diffTime = targetDate.getTime() - refDate.getTime();
-          const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
-          
-          if (diffDays >= 0) {
-            const dayInCycle = diffDays % cycleLength;
-            const shiftId = sequence[dayInCycle];
-            if (shiftId && shiftId !== 'off') {
-              activeShift = sTypes.find(s => s.id === shiftId);
-            }
-          }
-        }
-      }
-      
+      const activeShift = await getRawShiftForSubDept(emp.subDepartmentId, targetDate, dateStr);
+
       if (activeShift) {
         computed.push({
           id: dateStr,
