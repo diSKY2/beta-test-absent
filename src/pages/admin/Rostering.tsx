@@ -3,7 +3,7 @@ import { db, auth } from '../../lib/firestoreClient';
 import { collection, query, where, getDocs, setDoc, doc, addDoc, deleteDoc, batchSetDocs } from '../../lib/firestoreClient';
 import { handleFirestoreError, OperationType } from '../../lib/utils';
 import { format, addDays, startOfMonth, endOfMonth, differenceInDays } from 'date-fns';
-import { Calendar as CalIcon, Download, Clock, Repeat, Plus, Trash2, Edit2, ShieldAlert } from 'lucide-react';
+import { Calendar as CalIcon, Download, Clock, Repeat, Plus, Trash2, Edit2, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useToast } from '../../providers/ToastProvider';
 
@@ -295,63 +295,7 @@ export default function Rostering() {
      XLSX.writeFile(wb, `Jadwal_${locName}_${monthName}.xlsx`);
   };
 
-  const handlePushToApp = async () => {
-    if (!selectedSub || !pattern) {
-      toast.warning("Pilih regu dan pastikan pola sudah ditentukan.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // 1. Get employees in this sub-department
-      const empSnap = await getDocs(query(collection(db, 'employees'), where('subDepartmentId', '==', selectedSub)));
-      const employees = empSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-      if (employees.length === 0) {
-        toast.warning("Tidak ada pegawai di regu ini.");
-        setLoading(false);
-        return;
-      }
-
-      // 2. Compute schedules for the month
-      const dates = getDaysInMonth();
-      
-      const batchDocs: any[] = [];
-
-      for (const emp of employees) {
-        for (const dateStr of dates) {
-          const shift = getShiftForDate(dateStr);
-          if (shift) {
-            const docId = `${emp.id}_${dateStr}`;
-            batchDocs.push({
-              id: docId,
-              data: {
-                employeeId: emp.id,
-                subDepartmentId: selectedSub,
-                date: dateStr,
-                shiftTypeId: shift.id,
-                shiftName: shift.name,
-                shiftStart: shift.isOffDay ? "Libur" : shift.startTime,
-                shiftEnd: shift.isOffDay ? "Libur" : shift.endTime,
-                isOffDay: shift.isOffDay,
-                updatedAt: Date.now()
-              }
-            });
-          }
-        }
-      }
-      
-      if (batchDocs.length > 0) {
-        await batchSetDocs('schedules', batchDocs);
-      }
-      
-      toast.success(`Berhasil! ${batchDocs.length} jadwal shift bulan ini telah didistribusikan ke aplikasi pegawai.`);
-    } catch (e: any) {
-      console.error(e);
-      toast.error("Gagal mem-push jadwal: " + e.message);
-    }
-    setLoading(false);
-  };
+  
 
   const colors = [
     { label: 'Gray', value: 'bg-gray-100 text-slate-700' },
@@ -552,9 +496,9 @@ export default function Rostering() {
                   <button onClick={handleExport} className="flex items-center gap-2 bg-green-900/20 text-green-700 px-4 py-2 h-10 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors">
                     <Download className="w-4 h-4" /> Export Excel
                   </button>
-                  <button onClick={handlePushToApp} disabled={loading} className="flex items-center gap-2 bg-indigo-900/20 text-indigo-400 px-4 py-2 h-10 rounded-lg text-sm font-bold hover:bg-indigo-100 transition-colors disabled:opacity-50">
-                    <Repeat className="w-4 h-4" /> Push Jadwal ke Aplikasi
-                  </button>
+                  <div className="flex items-center gap-2 px-4 py-2 h-10 rounded-lg text-sm font-bold text-emerald-600 bg-emerald-50 border border-emerald-200">
+                    <CheckCircle2 className="w-4 h-4" /> Sinkronisasi Otomatis Aktif
+                  </div>
                 </div>
               </div>
 

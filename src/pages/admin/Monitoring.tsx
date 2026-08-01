@@ -57,71 +57,54 @@ export default function Monitoring() {
   };
 
   useEffect(() => {
-    const unsubLocs = onSnapshot(collection(db, 'locations'), (snap) => {
-      setLocations(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => {
-      console.error(error);
-    });
+    let isCancelled = false;
 
-    const unsubDepts = onSnapshot(collection(db, 'departments'), (snap) => {
-      setDepartments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => {
-      console.error(error);
-    });
+    const fetchMonitoringData = async () => {
+      try {
+        const res = await fetch(import.meta.env.VITE_API_BASE_URL + '/api/admin/monitoring-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dateFrom,
+            dateTo: dateTo >= dateFrom ? dateTo : dateFrom
+          })
+        });
 
-    const unsubSubDepts = onSnapshot(collection(db, 'sub_departments'), (snap) => {
-      setSubDepartments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => {
-      console.error(error);
-    });
+        if (!res.ok) throw new Error('Gagal memuat data monitoring');
+        
+        const data = await res.json();
+        
+        if (!isCancelled) {
+          setLocations(data.locations || []);
+          setDepartments(data.departments || []);
+          setSubDepartments(data.subDepartments || []);
+          
+          const empList = data.employees || [];
+          const map: Record<string, any> = {};
+          empList.forEach((e: any) => { map[e.id] = e; });
+          setEmployees(empList);
+          setEmployeesMap(map);
 
-    const unsubEmps = onSnapshot(collection(db, 'employees'), (snap) => {
-      const empList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const map: Record<string, any> = {};
-      empList.forEach(e => {
-        map[e.id] = e;
-      });
-      setEmployees(empList);
-      setEmployeesMap(map);
-    }, (error) => {
-      console.error(error);
-    });
-
-    return () => {
-      unsubLocs();
-      unsubDepts();
-      unsubSubDepts();
-      unsubEmps();
-    };
-  }, []);
-
-  useEffect(() => {
-    const fromStr = dateFrom;
-    const toStr = dateTo >= dateFrom ? dateTo : dateFrom;
-    
-    const q = query(
-      collection(db, 'attendances'),
-      where('attendanceDate', '>=', fromStr),
-      where('attendanceDate', '<=', toStr)
-    );
-    
-    const unsubscribeAttendances = onSnapshot(q, (snapshot) => {
-      const list: any[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        let formattedDate = data.date;
-        if (!formattedDate && data.attendanceDate) {
-          formattedDate = new Date(data.attendanceDate).toISOString().split('T')[0];
+          const attList = (data.attendances || []).map((a: any) => {
+            let formattedDate = a.date;
+            if (!formattedDate && a.attendanceDate) {
+              formattedDate = new Date(a.attendanceDate).toISOString().split('T')[0];
+            }
+            return { ...a, date: formattedDate };
+          });
+          setAttendances(attList);
         }
-        list.push({ id: doc.id, ...data, date: formattedDate });
-      });
-      setAttendances(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'attendances', auth);
-    });
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchMonitoringData();
+    const interval = setInterval(fetchMonitoringData, 10000); // Poll every 10 seconds
 
     return () => {
-      unsubscribeAttendances();
+      isCancelled = true;
+      clearInterval(interval);
     };
   }, [dateFrom, dateTo]);
 

@@ -288,6 +288,8 @@ export default function RegisterPage() {
                 >
                   <option value="">Pilih Posisi</option>
                   <option value="Anggota">Anggota</option>
+                  <option value="Chief">Chief</option>
+                  <option value="Wakachief">Wakachief</option>
                   <option value="Danru">Danru (Ketua Regu)</option>
                   </select>
               </div>

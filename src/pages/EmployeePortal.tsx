@@ -163,6 +163,27 @@ export default function EmployeePortal() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      if (res.ok) {
+         const datePart = new Date(leaveDate).toISOString().split('T')[0];
+         const attId = `${currentEmployee.id}_${datePart}`;
+         await fetch(API_BASE_URL + '/api/sql/rpc', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+               action: 'setDoc',
+               collection: 'attendances',
+               docId: attId,
+               data: {
+                  employeeId: currentEmployee.id,
+                  attendanceDate: new Date(leaveDate),
+                  status: leaveType,
+                  type: 'Leave',
+                  reason: leaveReason
+               },
+               options: { merge: true }
+            })
+         });
+      }
 
       if (res.ok) {
         triggerToast(`Berhasil membatalkan absensi anggota.`);
@@ -218,25 +239,41 @@ export default function EmployeePortal() {
   // Show customized floating toast
   
   
-  const fetchShiftExchanges = async () => {
+  const fetchShiftExchangesData = async () => {
     if (!currentEmployee) return;
     try {
-      const res = await fetch(API_BASE_URL + '/api/shift-exchanges/me/' + currentEmployee.id);
-      let myExchanges = [];
-      if (res.ok) {
-        myExchanges = await res.json();
+      const isDanru = currentEmployee.role && (currentEmployee.role.toLowerCase().includes('ketua') || currentEmployee.role.toLowerCase().includes('leader') || currentEmployee.role.toLowerCase().includes('danru') || currentEmployee.role.toLowerCase().includes('chief') || currentEmployee.role.toLowerCase().includes('waka'));
+      
+      const fetchPromises = [
+        fetch(API_BASE_URL + '/api/shift-exchanges/me/' + currentEmployee.id).then(res => res.ok ? res.json() : [])
+      ];
+
+      if (isDanru) {
+        const isChief = currentEmployee.role.toLowerCase().includes('chief') || currentEmployee.role.toLowerCase().includes('waka');
+        if (isChief && currentEmployee.locationId) {
+          fetchPromises.push(
+            fetch(API_BASE_URL + '/api/shift-exchanges/chief/' + currentEmployee.locationId).then(res => res.ok ? res.json() : [])
+          );
+        } else if (currentEmployee.subDepartmentId) {
+          fetchPromises.push(
+            fetch(API_BASE_URL + '/api/shift-exchanges/danru/' + currentEmployee.subDepartmentId).then(res => res.ok ? res.json() : [])
+          );
+        } else {
+           fetchPromises.push(Promise.resolve([]));
+        }
+      } else {
+        fetchPromises.push(Promise.resolve([]));
       }
 
-      // If Danru, also fetch pending danru for their subdept
-      let danruExchanges = [];
-      const isDanru = currentEmployee.role && (currentEmployee.role.toLowerCase().includes('ketua') || currentEmployee.role.toLowerCase().includes('leader') || currentEmployee.role.toLowerCase().includes('danru'));
-      
-      if (isDanru && currentEmployee.subDepartmentId) {
-        const resDanru = await fetch(API_BASE_URL + '/api/shift-exchanges/danru/' + currentEmployee.subDepartmentId);
-        if (resDanru.ok) {
-          danruExchanges = await resDanru.json();
-        }
+      if (allEmployees.length === 0) {
+        fetchPromises.push(
+          fetch(API_BASE_URL + '/api/employees').then(res => res.ok ? res.json() : [])
+        );
+      } else {
+        fetchPromises.push(Promise.resolve(null));
       }
+
+      const [myExchanges, danruExchanges, empsData] = await Promise.all(fetchPromises);
 
       // Combine and deduplicate
       const allExchanges = [...myExchanges];
@@ -248,27 +285,20 @@ export default function EmployeePortal() {
       
       // Sort by createdAt desc
       allExchanges.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      
       setExchangeList(allExchanges);
+
+      if (empsData) {
+        setAllEmployees(empsData.filter((e: any) => e.id !== currentEmployee.id));
+      }
+
     } catch (err) {
       console.error(err);
     }
   };
 
-  const fetchAllEmployees = async () => {
-    try {
-      const res = await fetch(API_BASE_URL + '/api/employees-list'); // Need this endpoint or just fetch from /api/employees ? 
-      // I'll create a lightweight endpoint for employee dropdown or reuse existing if there is one.
-    } catch (err) { }
-  };
-  
   useEffect(() => {
     if (activeTab === 'tukar_jadwal') {
-      fetchShiftExchanges();
-      fetch(API_BASE_URL + '/api/employees')
-        .then(res => res.json())
-        .then(data => setAllEmployees(data.filter((e: any) => e.id !== currentEmployee?.id)))
-        .catch(console.error);
+      fetchShiftExchangesData();
     }
   }, [activeTab, currentEmployee]);
 
@@ -316,7 +346,7 @@ export default function EmployeePortal() {
         setExchangeDatePayback('');
         setExchangeReason('');
         setExchangeTab('history');
-        fetchShiftExchanges();
+        fetchShiftExchangesData();
       } else {
         triggerToast('Gagal mengajukan tukar jadwal');
       }
@@ -335,7 +365,8 @@ export default function EmployeePortal() {
       });
       if (res.ok) {
         triggerToast('Status tukar jadwal berhasil diperbarui');
-        fetchShiftExchanges();
+        fetchShiftExchangesData();
+        fetchEmployeeResources(true);
       }
     } catch (err) {
       console.error(err);
@@ -543,18 +574,24 @@ export default function EmployeePortal() {
     if (!currentEmployee) return;
     try {
       const shouldFetchStatic = !isSoftRefresh || !staticDataFetched.current;
-      const isLeader = !!(currentEmployee.role && (currentEmployee.role.toLowerCase().includes('ketua') || currentEmployee.role.toLowerCase().includes('leader') || currentEmployee.role.toLowerCase().includes('danru')));
+      const isLeader = !!(currentEmployee.role && (currentEmployee.role.toLowerCase().includes('ketua') || currentEmployee.role.toLowerCase().includes('leader') || currentEmployee.role.toLowerCase().includes('danru') || currentEmployee.role.toLowerCase().includes('chief') || currentEmployee.role.toLowerCase().includes('waka')));
 
-      const res = await fetch(API_BASE_URL + '/api/employee/dashboard-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employeeId: currentEmployee.id,
-          subDepartmentId: currentEmployee.subDepartmentId,
-          isLeader,
-          isSoftRefresh: !shouldFetchStatic
-        })
-      });
+      const fetchPromises: Promise<Response>[] = [
+        fetch(API_BASE_URL + '/api/employee/dashboard-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employeeId: currentEmployee.id,
+            subDepartmentId: currentEmployee.subDepartmentId,
+            isLeader,
+            isSoftRefresh: !shouldFetchStatic
+          })
+        }),
+        fetch(API_BASE_URL + '/api/schedules/employee/' + currentEmployee.id)
+      ];
+
+      const responses = await Promise.all(fetchPromises);
+      const res = responses[0];
 
       if (!res.ok) {
         if (res.status === 404) {
@@ -585,9 +622,9 @@ export default function EmployeePortal() {
       }
 
       // 2. Compute dynamic 7-day schedule
-      if (shouldFetchStatic) {
+      if (responses[1]) {
          try {
-           const schRes = await fetch(API_BASE_URL + '/api/schedules/employee/' + currentEmployee.id);
+           const schRes = responses[1];
            if (schRes.ok) {
               const computedSchedules = await schRes.json();
               const today = new Date();
@@ -1056,7 +1093,7 @@ export default function EmployeePortal() {
           type: leaveType,
           reason: leaveReason,
           photoUrl: leaveAttachment,
-          status: 'Pending'
+          status: 'Approved'
         }
       };
 
@@ -1111,7 +1148,7 @@ export default function EmployeePortal() {
           requestDate: new Date(overtimeDate),
           reason: overtimeReason,
           hours: Number(overtimeHours),
-          status: 'Pending'
+          status: 'Approved'
         }
       };
 
@@ -1872,8 +1909,8 @@ export default function EmployeePortal() {
 
                   </div>
 
-                  {/* PANEL KOMANDO REGU (DANRU / KETUA REGU ONLY) */}
-                  {currentEmployee?.role && (currentEmployee.role.toLowerCase().includes('ketua') || currentEmployee.role.toLowerCase().includes('leader') || currentEmployee.role.toLowerCase().includes('danru')) && allSubDeptEmployees.length > 0 && (
+                  {/* PANEL KOMANDO REGU (DANRU / KETUA REGU / CHIEF ONLY) */}
+                  {(currentEmployee?.role && (currentEmployee.role.toLowerCase().includes('ketua') || currentEmployee.role.toLowerCase().includes('leader') || currentEmployee.role.toLowerCase().includes('danru') || currentEmployee.role.toLowerCase().includes('chief') || currentEmployee.role.toLowerCase().includes('waka'))) && allSubDeptEmployees.length > 0 && (
                     <div className="bg-gradient-to-br from-slate-900 to-[#0C2461] border border-indigo-950 text-white rounded-3xl p-5 space-y-4 shadow-xl relative overflow-hidden">
                       {/* Decorative background grid */}
                       <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#14B8A6]/10 to-transparent rounded-full blur-xl pointer-events-none" />
@@ -2223,6 +2260,13 @@ export default function EmployeePortal() {
                         <option value="3">3 Jam</option>
                         <option value="4">4 Jam</option>
                         <option value="5">5 Jam</option>
+                        <option value="6">6 Jam</option>
+                        <option value="7">7 Jam</option>
+                        <option value="8">8 Jam</option>
+                        <option value="9">9 Jam</option>
+                        <option value="10">10 Jam</option>
+                        <option value="11">11 Jam</option>
+                        <option value="12">12 Jam</option>
                       </select>
                     </div>
 
@@ -2695,7 +2739,7 @@ export default function EmployeePortal() {
                           exchangeList.map(item => {
                             const isRequester = item.requesterId === currentEmployee?.id;
                             const isReplacer = item.replacerId === currentEmployee?.id;
-                            const isDanru = currentEmployee?.role && (currentEmployee.role.toLowerCase().includes('ketua') || currentEmployee.role.toLowerCase().includes('leader') || currentEmployee.role.toLowerCase().includes('danru'));
+                            const isDanru = currentEmployee?.role && (currentEmployee.role.toLowerCase().includes('ketua') || currentEmployee.role.toLowerCase().includes('leader') || currentEmployee.role.toLowerCase().includes('danru') || currentEmployee.role.toLowerCase().includes('chief') || currentEmployee.role.toLowerCase().includes('waka'));
                             
                             return (
                               <div key={item.id} className="bg-white border border-slate-200 p-4 rounded-3xl shadow-sm shadow-indigo-900/5 space-y-3 relative overflow-hidden">

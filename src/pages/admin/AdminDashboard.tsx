@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Link, Outlet, useLocation } from 'react-router';
 import { useAuth } from '../../providers/AuthProvider';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from '../../lib/firestoreClient';
 // @ts-ignore
 // @ts-ignore
 import { db } from '../../lib/firebase';

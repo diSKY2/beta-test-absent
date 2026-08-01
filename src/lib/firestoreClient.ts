@@ -1,12 +1,8 @@
-import { initializeApp as realInitializeApp } from "firebase/app";
-import { getFirestore as realGetFirestore, collection as realFbCollection, doc as realFbDoc, setDoc as realFbSetDoc, addDoc as realFbAddDoc, updateDoc as realFbUpdateDoc, deleteDoc as realFbDeleteDoc, writeBatch as realFbWriteBatch, getDocs as realFbGetDocs } from "firebase/firestore";
-import firebaseConfigData from '../../firebase-applet-config.json';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 
-const realApp = realInitializeApp(firebaseConfigData);
-const realDb = realGetFirestore(realApp, firebaseConfigData.firestoreDatabaseId || "(default)");
+
 
 export const getFirestore = (...args: any[]) => ({});
 export const getStorage = (...args: any[]) => ({});
@@ -54,30 +50,60 @@ export function orderBy(field: string, dir: string = 'asc') {
   return { type: 'orderBy', field, dir };
 }
 
-export async function getDocs(queryObj: any) {
+let batchQueue: any[] = [];
+let batchTimeout: any = null;
+
+async function processBatchQueue() {
+  const currentBatch = batchQueue;
+  batchQueue = [];
+  batchTimeout = null;
+  
+  if (currentBatch.length === 0) return;
+  
   const reqBody = {
-    action: 'getDocs',
-    collection: queryObj.name,
-    queries: queryObj.queries || [],
-    order: queryObj.orders || []
+    action: 'batchGetDocs',
+    batch: currentBatch.map(b => ({
+      collection: b.queryObj.name,
+      queries: b.queryObj.queries || [],
+      order: b.queryObj.orders || []
+    }))
   };
-  const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(reqBody)
-  });
-  if (!res.ok) throw new Error(await res.text());
-  const data = await res.json();
-  return {
-    empty: data.length === 0,
-    docs: data.map((d: any) => ({
-      id: d.id,
-      data: () => d
-    })),
-    forEach(callback: (doc: any) => void) {
-      this.docs.forEach(callback);
+
+  try {
+    const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reqBody)
+    });
+    
+    if (!res.ok) throw new Error(await res.text());
+    const batchResults = await res.json();
+    
+    batchResults.forEach((data: any, index: number) => {
+      const b = currentBatch[index];
+      b.resolve({
+        empty: data.length === 0,
+        docs: data.map((d: any) => ({
+          id: d.id,
+          data: () => d
+        })),
+        forEach(callback: (doc: any) => void) {
+          this.docs.forEach(callback);
+        }
+      });
+    });
+  } catch (err) {
+    currentBatch.forEach(b => b.reject(err));
+  }
+}
+
+export async function getDocs(queryObj: any): Promise<{ empty: boolean, docs: any[], forEach: (cb: (doc: any) => void) => void }> {
+  return new Promise((resolve, reject) => {
+    batchQueue.push({ queryObj, resolve, reject });
+    if (!batchTimeout) {
+      batchTimeout = setTimeout(processBatchQueue, 20);
     }
-  };
+  });
 }
 
 export async function addDoc(col: any, data: any) {
@@ -90,12 +116,6 @@ export async function addDoc(col: any, data: any) {
   
   const parsedResponse = await res.json();
   const idFromPg = parsedResponse.id;
-  
-  // Dual write to real Firebase so mobile app stays synced
-  try {
-    const realRef = realFbDoc(realDb, col.name, idFromPg);
-    await realFbSetDoc(realRef, data);
-  } catch (e) { console.error("Firebase sync error on addDoc", e); }
   
   return parsedResponse;
 }
@@ -110,15 +130,6 @@ export async function batchSetDocs(collectionName: string, docs: { id: string, d
   
   const parsedResponse = await res.json();
   
-  try {
-    const batch = realFbWriteBatch(realDb);
-    docs.forEach(d => {
-      const realRef = realFbDoc(realDb, collectionName, d.id);
-      batch.set(realRef, d.data, { merge: true });
-    });
-    await batch.commit();
-  } catch (e) { console.error("Firebase sync error on batchSetDocs", e); }
-  
   return parsedResponse;
 }
 export async function setDoc(docObj: any, data: any, options?: any) {
@@ -130,11 +141,6 @@ export async function setDoc(docObj: any, data: any, options?: any) {
   if (!res.ok) throw new Error(await res.text());
   
   const parsedResponse = await res.json();
-  
-  try {
-    const realRef = realFbDoc(realDb, docObj.name, docObj.id);
-    await realFbSetDoc(realRef, data, options || {});
-  } catch (e) { console.error("Firebase sync error on setDoc", e); }
   
   return parsedResponse;
 }
@@ -149,11 +155,6 @@ export async function updateDoc(docObj: any, data: any) {
   
   const parsedResponse = await res.json();
   
-  try {
-    const realRef = realFbDoc(realDb, docObj.name, docObj.id);
-    await realFbUpdateDoc(realRef, data);
-  } catch (e) { console.error("Firebase sync error on updateDoc", e); }
-  
   return parsedResponse;
 }
 
@@ -167,11 +168,6 @@ export async function deleteDoc(docObj: any) {
   
   const parsedResponse = await res.json();
   
-  try {
-    const realRef = realFbDoc(realDb, docObj.name, docObj.id);
-    await realFbDeleteDoc(realRef);
-  } catch (e) { console.error("Firebase sync error on deleteDoc", e); }
-  
   return parsedResponse;
 }
 
@@ -182,14 +178,27 @@ export function onSnapshot(queryObj: any, onNext: (snap: any) => void, onError?:
     if (isCancelled) return;
     getDocs(queryObj).then(snap => {
       if (!isCancelled) onNext(snap);
-      setTimeout(fetchCycle, 5000);
+      setTimeout(fetchCycle, 30000);
     }).catch(err => {
       if (onError && !isCancelled) onError(err);
-      setTimeout(fetchCycle, 5000);
+      setTimeout(fetchCycle, 30000);
     });
   };
   
   fetchCycle();
   
   return () => { isCancelled = true; };
+}
+
+export async function getDoc(docRef: any) {
+  const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'getDoc', collection: docRef.name, docId: docRef.id })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  
+  const parsedResponse = await res.json();
+  if (!parsedResponse) return { exists: () => false, data: () => null };
+  return { exists: () => true, data: () => parsedResponse };
 }

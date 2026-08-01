@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../src/db';
 import { locations, departments, subDepartments, employees, employeeAllowances, employeeDeductions, admins, employeeRegistrations, shiftExchanges, schedules } from '../src/db/schema';
-import { eq, or, and, inArray } from 'drizzle-orm';
+import { eq, or, and, inArray, gte, lte } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 
 export const apiRouter = express.Router();
@@ -282,7 +282,12 @@ apiRouter.post('/employee/dashboard-data', async (req, res) => {
       queries.push(db.select().from(announcements));
       
       if (isLeader) {
-        queries.push(db.select().from(employees).where(eq(employees.subDepartmentId, subDepartmentId)));
+        const isChief = empUser.role && (empUser.role.toLowerCase().includes('chief') || empUser.role.toLowerCase().includes('waka'));
+        if (isChief) {
+           queries.push(db.select().from(employees).where(eq(employees.locationId, empUser.locationId)));
+        } else {
+           queries.push(db.select().from(employees).where(eq(employees.subDepartmentId, subDepartmentId)));
+        }
       } else {
         queries.push(Promise.resolve([]));
       }
@@ -320,6 +325,37 @@ apiRouter.post('/admin/register', async (req, res) => {
     const newAdmin = { id: uuidv4(), email, password, name, role: 'admin' };
     await db.insert(admins).values(newAdmin);
     res.json({ success: true, user: { id: newAdmin.id, email: newAdmin.email, name: newAdmin.name, role: newAdmin.role } });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.post('/admin/monitoring-data', async (req, res) => {
+  try {
+    const { dateFrom, dateTo } = req.body;
+
+    const queries = [
+      db.select().from(locations),
+      db.select().from(departments),
+      db.select().from(subDepartments),
+      db.select().from(employees),
+      db.select().from(attendances).where(
+        and(
+          gte(attendances.attendanceDate, dateFrom),
+          lte(attendances.attendanceDate, dateTo)
+        )
+      )
+    ];
+
+    const results = await Promise.all(queries);
+
+    res.json({
+      locations: results[0],
+      departments: results[1],
+      subDepartments: results[2],
+      employees: results[3],
+      attendances: results[4]
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -376,6 +412,35 @@ apiRouter.get('/shift-exchanges/pending-danru', async (req, res) => {
     }));
     
     res.json(formatted);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+apiRouter.get('/shift-exchanges/chief/:locationId', async (req, res) => {
+  try {
+    const { locationId } = req.params;
+    const allExchanges = await db.select().from(shiftExchanges).where(eq(shiftExchanges.status, 'Pending_Danru'));
+    
+    const emps = await db.select().from(employees).where(eq(employees.locationId, locationId));
+    const empIds = emps.map(e => e.id);
+    const empMap = {};
+    emps.forEach(e => empMap[e.id] = e.name);
+    
+    const allEmps = await db.select().from(employees);
+    const allEmpMap = {};
+    allEmps.forEach(e => allEmpMap[e.id] = e.name);
+
+    const filtered = allExchanges.filter(ex => empIds.includes(ex.requesterId) || empIds.includes(ex.replacerId));
+    
+    const enhanced = filtered.map(ex => ({
+      ...ex,
+      requesterName: allEmpMap[ex.requesterId] || ex.requesterId,
+      replacerName: allEmpMap[ex.replacerId] || ex.replacerId
+    }));
+    
+    res.json(enhanced);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -502,8 +567,16 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
       return activeShift;
     };
 
+    
     const exchanges = await db.select().from(shiftExchanges)
       .where(and(eq(shiftExchanges.status, 'Approved'), or(eq(shiftExchanges.requesterId, id), eq(shiftExchanges.replacerId, id))));
+
+    const leaves = await db.select().from(leaveRequests)
+      .where(and(eq(leaveRequests.employeeId, id), eq(leaveRequests.status, 'Approved')));
+      
+    const overtimes = await db.select().from(overtimeRequests)
+      .where(and(eq(overtimeRequests.employeeId, id), eq(overtimeRequests.status, 'Approved')));
+
 
     // Collect all other employee IDs involved in exchanges
     const otherEmpIds = Array.from(new Set(
@@ -589,9 +662,34 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
         continue;
       }
 
+      
+      const isLeave = leaves.find(l => new Date(l.requestDate).toISOString().split('T')[0] === dateStr);
+      if (isLeave) {
+        computed.push({
+          id: 'leave-' + dateStr,
+          date: targetDate.toISOString(),
+          shiftName: isLeave.type || 'Cuti/Izin',
+          isOffDay: true
+        });
+        continue;
+      }
+      
+      const isOvertime = overtimes.find(o => new Date(o.requestDate).toISOString().split('T')[0] === dateStr);
+      
       const activeShift = await getRawShiftForSubDept(emp.subDepartmentId, targetDate, dateStr);
-
       if (activeShift) {
+        if (isOvertime && activeShift.isOffDay) {
+          computed.push({
+            id: 'ot-' + dateStr,
+            date: targetDate.toISOString(),
+            shiftName: 'Lembur',
+            shiftStart: '08:00', // default, could be dynamic based on overtime duration but we just need them to clock in
+            shiftEnd: '17:00',
+            isOffDay: false
+          });
+          continue;
+        }
+
         computed.push({
           id: dateStr,
           date: targetDate.toISOString(),
