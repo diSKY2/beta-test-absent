@@ -237,11 +237,14 @@ export default function Monitoring() {
 
       // Rows 6+ Data
       allEmployees.forEach(emp => {
+          const dept = departments.find(d => d.id === emp.departmentId);
+          const subDept = subDepartments.find(sd => sd.id === emp.subDepartmentId);
+
           const row: any[] = [
               emp.nik || emp.id.substring(0, 8), 
               emp.name || '-', 
-              emp.departmentName || '-', 
-              emp.rosterId || 'REGU A' 
+              dept ? dept.name : '-', 
+              subDept ? subDept.name : '-' 
           ];
 
           let masuk = 0;
