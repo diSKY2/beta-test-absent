@@ -24,7 +24,7 @@ export default function Approvals() {
     // Assuming Danru role, fetch shift exchanges pending Danru approval
     // But since Admin is global or subDept based, we can fetch all or pass the admin's subDept
     // If admin is super, fetch all. For now, fetch all by hitting a generic endpoint or /api/shift-exchanges/all-danru
-    fetch(import.meta.env.VITE_API_BASE_URL + '/api/shift-exchanges/pending-danru')
+    fetch((import.meta.env.VITE_API_BASE_URL || "") + '/api/shift-exchanges/pending-danru')
       .then(res => res.json())
       .then(data => setShiftExchanges(data))
       .catch(console.error);
@@ -32,7 +32,7 @@ export default function Approvals() {
 
   const handleExchangeApproval = async (id: string, status: string) => {
     try {
-      const res = await fetch(import.meta.env.VITE_API_BASE_URL + '/api/shift-exchanges/' + id + '/status', {
+      const res = await fetch((import.meta.env.VITE_API_BASE_URL || "") + '/api/shift-exchanges/' + id + '/status', {
          method: 'PUT',
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({ status })
@@ -103,7 +103,7 @@ export default function Approvals() {
          const attId = `${req.employeeId}_${datePart}`;
          // To delete the attendance record that was automatically created
          try {
-             await fetch(import.meta.env.VITE_API_BASE_URL + '/api/sql/rpc', {
+             await fetch((import.meta.env.VITE_API_BASE_URL || "") + '/api/sql/rpc', {
                method: 'POST',
                headers: { 'Content-Type': 'application/json' },
                body: JSON.stringify({

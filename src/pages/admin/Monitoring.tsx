@@ -61,7 +61,8 @@ export default function Monitoring() {
 
     const fetchMonitoringData = async () => {
       try {
-        const res = await fetch(import.meta.env.VITE_API_BASE_URL + '/api/admin/monitoring-data', {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+        const res = await fetch(baseUrl + '/api/admin/monitoring-data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -88,7 +89,7 @@ export default function Monitoring() {
           const attList = (data.attendances || []).map((a: any) => {
             let formattedDate = a.date;
             if (!formattedDate && a.attendanceDate) {
-              formattedDate = new Date(a.attendanceDate).toISOString().split('T')[0];
+              formattedDate = format(new Date(a.attendanceDate), 'yyyy-MM-dd');
             }
             return { ...a, date: formattedDate };
           });

@@ -333,6 +333,10 @@ apiRouter.post('/admin/register', async (req, res) => {
 apiRouter.post('/admin/monitoring-data', async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.body;
+    
+    // Konversi string YYYY-MM-DD ke Date
+    const fromDate = dateFrom ? new Date(dateFrom + 'T00:00:00.000Z') : new Date();
+    const toDate = dateTo ? new Date(dateTo + 'T23:59:59.999Z') : new Date();
 
     const queries = [
       db.select().from(locations),
@@ -341,8 +345,8 @@ apiRouter.post('/admin/monitoring-data', async (req, res) => {
       db.select().from(employees),
       db.select().from(attendances).where(
         and(
-          gte(attendances.attendanceDate, dateFrom),
-          lte(attendances.attendanceDate, dateTo)
+          gte(attendances.attendanceDate, fromDate),
+          lte(attendances.attendanceDate, toDate)
         )
       )
     ];

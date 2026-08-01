@@ -145,7 +145,9 @@ export default function EmployeePortal() {
   const isKetua = !!(currentEmployee?.role && (
     currentEmployee.role.toLowerCase().includes('ketua') || 
     currentEmployee.role.toLowerCase().includes('leader') || 
-    currentEmployee.role.toLowerCase().includes('danru')
+    currentEmployee.role.toLowerCase().includes('danru') ||
+    currentEmployee.role.toLowerCase().includes('chief') ||
+    currentEmployee.role.toLowerCase().includes('waka')
   ));
 
   const handleResetAbsen = async (attendanceId: string) => {

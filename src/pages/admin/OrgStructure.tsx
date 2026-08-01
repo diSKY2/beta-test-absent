@@ -454,6 +454,9 @@ function OrgStructure() {
                   <select required className="w-full text-sm bg-white text-slate-900 rounded-lg border border-slate-300 focus:ring-teal-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" value={form.role} onChange={e=>setForm({...form, role: e.target.value})}>
                     <option value="Anggota">Anggota</option>
                     <option value="Ketua">Ketua</option>
+                    <option value="Danru">Danru</option>
+                    <option value="Chief">Chief</option>
+                    <option value="Waka Chief">Waka Chief</option>
                   </select>
                 </div>
                 

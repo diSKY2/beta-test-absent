@@ -1,4 +1,5 @@
 async function test() {
+  const { fetch } = await import('node-fetch');
   const res = await fetch('http://127.0.0.1:3000/api/admin/monitoring-data', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

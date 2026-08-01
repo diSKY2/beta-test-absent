@@ -21,8 +21,15 @@ export default function HRAdminManager() {
 
   const fetchAdmins = async () => {
     try {
-      const snap = await getDocs(collection(db, 'admins'));
-      setAdmins(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ action: 'getDocs', collection: 'admins' })
+      });
+      if (res.ok) {
+         const data = await res.json();
+         setAdmins(data);
+      }
     } catch(err) {
       console.error("Error fetching admins", err);
     }
@@ -59,7 +66,12 @@ export default function HRAdminManager() {
   const handleDelete = async (id: string, email: string) => {
     try {
       console.log('Attempting to delete admin with id:', id);
-      await deleteDoc(doc(db, 'admins', id));
+      const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ action: 'deleteDoc', collection: 'admins', docId: id })
+      });
+      if (!res.ok) throw new Error("Gagal menghapus");
       console.log('Deletion successful');
       setAdmins(admins.filter(a => a.id !== id));
       toast.success('Akun HRD berhasil dihapus');
