@@ -348,6 +348,12 @@ apiRouter.post('/admin/monitoring-data', async (req, res) => {
           gte(attendances.attendanceDate, fromDate),
           lte(attendances.attendanceDate, toDate)
         )
+      ),
+      db.select().from(schedules).where(
+        and(
+          gte(schedules.date, fromDate),
+          lte(schedules.date, toDate)
+        )
       )
     ];
 
@@ -358,7 +364,8 @@ apiRouter.post('/admin/monitoring-data', async (req, res) => {
       departments: results[1],
       subDepartments: results[2],
       employees: results[3],
-      attendances: results[4]
+      attendances: results[4],
+      schedules: results[5] || []
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

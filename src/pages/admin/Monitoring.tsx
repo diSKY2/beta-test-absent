@@ -22,6 +22,7 @@ export default function Monitoring() {
   const [selectedLocationId, setSelectedLocationId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [attendances, setAttendances] = useState<any[]>([]);
+  const [schedules, setSchedules] = useState<any[]>([]);
 
   const [departments, setDepartments] = useState<any[]>([]);
   const [subDepartments, setSubDepartments] = useState<any[]>([]);
@@ -94,6 +95,11 @@ export default function Monitoring() {
             return { ...a, date: formattedDate };
           });
           setAttendances(attList);
+          
+          const schedList = (data.schedules || []).map((s: any) => {
+            return { ...s, dateFormatted: s.date ? format(new Date(s.date), 'yyyy-MM-dd') : null };
+          });
+          setSchedules(schedList);
         }
       } catch (err) {
         console.error(err);
@@ -154,7 +160,18 @@ export default function Monitoring() {
     }
   });
 
-  const recorded = hadir + izin + sakit;
+  let offDaysCount = 0;
+  filteredEmployees.forEach(emp => {
+    const hasAtt = visibleAttendances.some(a => a.employeeId === emp.id);
+    if (!hasAtt) {
+      const sched = schedules.find(s => s.employeeId === emp.id && s.dateFormatted === dateFrom);
+      if (sched && sched.isOffDay) {
+        offDaysCount++;
+      }
+    }
+  });
+
+  const recorded = hadir + izin + sakit + offDaysCount;
   const expectedTotal = filteredEmployees.length;
   let calculatedAlpa = expectedTotal - recorded;
   if (calculatedAlpa < 0 || expectedTotal === 0) calculatedAlpa = 0;
@@ -234,6 +251,7 @@ export default function Monitoring() {
 
           dates.forEach(d => {
               const att = allAttendances.find(a => (a.employeeId === emp.id || a.employeeId === emp.name) && a.date === d);
+              const sched = schedules.find(s => s.employeeId === emp.id && s.dateFormatted === d);
               
               if (att) {
                   row.push(att.timeIn || '');
@@ -247,8 +265,10 @@ export default function Monitoring() {
                   if (att.isLate) telat++;
                   if (statusStr === 'izin' || statusStr === 'sakit') izinCount++;
                   if (statusStr === 'alpa') alpaCount++;
+              } else if (sched && sched.isOffDay) {
+                  row.push('', '', '', '', 'Libur / Off');
               } else {
-                  row.push('', '', '', '', '');
+                  row.push('', '', '', '', 'Tanpa Keterangan (Alpa)');
                   alpaCount++;
               }
           });
@@ -268,10 +288,10 @@ export default function Monitoring() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Absensi');
       XLSX.writeFile(wb, `Laporan_Absensi_${dateFrom}_${dateTo}.xlsx`);
-      toast.success('Pengeksporan laporan absensi berhasil!');
+      toast.triggerToast('Pengeksporan laporan absensi berhasil!');
     } catch (err: any) {
       console.error(err);
-      toast.error('Gagal mengekspor data: ' + err.message);
+      toast.triggerToast('Gagal mengekspor data: ' + err.message);
     }
   };
 
@@ -498,7 +518,15 @@ export default function Monitoring() {
               if (st === 'hadir') locHadir++;
               if (st === 'izin' || st === 'sakit') locIzinSakit++;
             });
-            const locBelumAbsen = Math.max(0, locEmployees.length - (locHadir + locIzinSakit));
+            let locOffCount = 0;
+            locEmployees.forEach(emp => {
+              const hasAtt = locAttendances.some(a => a.employeeId === emp.id);
+              if (!hasAtt) {
+                const sched = schedules.find(s => s.employeeId === emp.id && s.dateFormatted === dateFrom);
+                if (sched && sched.isOffDay) locOffCount++;
+              }
+            });
+            const locBelumAbsen = Math.max(0, locEmployees.length - (locHadir + locIzinSakit + locOffCount));
             
             const deptsInLoc = departments.filter(d => locEmployees.some(e => e.departmentId === d.id));
 
@@ -602,8 +630,12 @@ export default function Monitoring() {
                                                 </td>
                                               </tr>
                                             ) : filteredSubDeptEmployees.map(emp => {
+                                               let defaultStatus = 'Belum Absen';
+                                               const sched = schedules.find(s => s.employeeId === emp.id && s.dateFormatted === dateFrom);
+                                               if (sched && sched.isOffDay) defaultStatus = 'Libur / Off';
+                                               
                                                const a = attendances.find(attn => attn.date === dateFrom && attn.employeeId === emp.id) || {
-                                                 status: 'Belum Absen',
+                                                 status: defaultStatus,
                                                  employeeId: emp.id,
                                                  date: dateFrom
                                                };
