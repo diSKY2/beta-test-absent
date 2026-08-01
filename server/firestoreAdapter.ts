@@ -104,16 +104,18 @@ genericDbRouter.post('/rpc', async (req, res) => {
       }
     }
 
-    if (!table) {
-      return res.status(400).json({ error: 'Collection not defined in schema: ' + collection });
-    }
-
-    
     if (action === 'batchGetDocs') {
       const { batch } = req.body;
       const results = await Promise.all(batch.map((b: any) => processGetDocs(b.collection, b.filters, b.queries)));
       return res.json(results);
     }
+    
+    if (!table) {
+      return res.status(400).json({ error: 'Collection not defined in schema: ' + collection });
+    }
+
+    
+    
     
     if (action === 'getDocs') {
       const results = await processGetDocs(collection, filters, queries);
