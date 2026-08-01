@@ -136,7 +136,7 @@ export default function Monitoring() {
     return false;
   };
 
-  const visibleAttendances = attendances.filter(isAttendanceInSelectedLocation);
+  const visibleAttendances = attendances.filter(isAttendanceInSelectedLocation).filter(a => a.date === dateFrom);
 
   // Derive stats dynamically
   let hadir = 0;
@@ -155,7 +155,7 @@ export default function Monitoring() {
   });
 
   const recorded = hadir + izin + sakit;
-  const expectedTotal = filteredEmployees.length * activeDaysCount;
+  const expectedTotal = filteredEmployees.length;
   let calculatedAlpa = expectedTotal - recorded;
   if (calculatedAlpa < 0 || expectedTotal === 0) calculatedAlpa = 0;
 
@@ -175,27 +175,11 @@ export default function Monitoring() {
 
   const handleExport = async () => {
     try {
-      // 1. Fetch Employees
-      const empSnap = await getDocs(collection(db, 'employees'));
-      let allEmployees = empSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
-      if (selectedLocationId !== 'all') {
-         allEmployees = allEmployees.filter(e => e.locationId === selectedLocationId);
-      }
+      // 1. Use loaded Employees
+      let allEmployees = filteredEmployees;
 
-      // 2. Fetch Attendances for date range
-      const attSnap = await getDocs(query(
-        collection(db, 'attendances'),
-        where('attendanceDate', '>=', dateFrom),
-        where('attendanceDate', '<=', dateTo)
-      ));
-      const allAttendances = attSnap.docs.map(d => {
-        const data = d.data() as any;
-        let formattedDate = data.date;
-        if (!formattedDate && data.attendanceDate) {
-          formattedDate = new Date(data.attendanceDate).toISOString().split('T')[0];
-        }
-        return { id: d.id, ...data, date: formattedDate };
-      });
+      // 2. Use loaded Attendances
+      const allAttendances = attendances;
 
       // 3. Prepare dates
       const start = new Date(dateFrom);
