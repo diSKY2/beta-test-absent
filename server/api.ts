@@ -579,8 +579,11 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
     };
 
     
-    const exchanges = await db.select().from(shiftExchanges)
+    const rawExchanges = await db.select().from(shiftExchanges)
       .where(and(eq(shiftExchanges.status, 'Approved'), or(eq(shiftExchanges.requesterId, id), eq(shiftExchanges.replacerId, id))));
+    
+    // Sort exchanges by createdAt descending so the latest exchange takes precedence
+    const exchanges = rawExchanges.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const leaves = await db.select().from(leaveRequests)
       .where(and(eq(leaveRequests.employeeId, id), eq(leaveRequests.status, 'Approved')));

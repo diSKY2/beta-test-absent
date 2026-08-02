@@ -112,8 +112,9 @@ export default function Rostering() {
         const map: Record<string, string> = {};
         schedulesSnap.forEach(doc => {
           const d = doc.data();
-          if (d.date.startsWith(`${year}-${month}`)) {
-            map[d.date] = d.shiftTypeId;
+          const overrideDate = d.overrideDate || d.date;
+          if (overrideDate && overrideDate.startsWith(`${year}-${month}`)) {
+            map[overrideDate] = d.shiftTypeId;
           }
         });
         setSchedules(map);
@@ -225,7 +226,7 @@ export default function Rostering() {
       const docId = `${selectedSub}_${dateStr}`;
       await setDoc(doc(db, 'subdept_schedule_overrides', docId), {
         subDepartmentId: selectedSub,
-        date: dateStr,
+        overrideDate: dateStr,
         shiftTypeId: shiftTypeId,
         updatedAt: Date.now()
       }, { merge: true });
