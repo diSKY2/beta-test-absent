@@ -2388,6 +2388,7 @@ export default function EmployeePortal() {
                         value={overtimeHours}
                         onChange={(e) => setOvertimeHours(e.target.value)}
                       >
+                        <option value="0.5">0.5 Jam (30 Menit)</option>
                         <option value="1">1 Jam</option>
                         <option value="2">2 Jam</option>
                         <option value="3">3 Jam</option>

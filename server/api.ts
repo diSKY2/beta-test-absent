@@ -357,6 +357,18 @@ apiRouter.post('/admin/monitoring-data', async (req, res) => {
           gte(schedules.date, fromDate),
           lte(schedules.date, toDate)
         )
+      ),
+      db.select().from(leaveRequests).where(
+        and(
+          gte(leaveRequests.requestDate, fromDate),
+          lte(leaveRequests.requestDate, toDate)
+        )
+      ),
+      db.select().from(overtimeRequests).where(
+        and(
+          gte(overtimeRequests.requestDate, fromDate),
+          lte(overtimeRequests.requestDate, toDate)
+        )
       )
     ];
 
@@ -368,7 +380,9 @@ apiRouter.post('/admin/monitoring-data', async (req, res) => {
       subDepartments: results[2],
       employees: results[3],
       attendances: results[4],
-      schedules: results[5] || []
+      schedules: results[5] || [],
+      leaveRequests: results[6] || [],
+      overtimeRequests: results[7] || []
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

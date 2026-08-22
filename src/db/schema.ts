@@ -1,4 +1,4 @@
-import { boolean, decimal, integer, json, pgEnum, pgTable, text, time, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { boolean, decimal, integer, json, pgEnum, pgTable, text, time, timestamp, varchar, real } from 'drizzle-orm/pg-core';
 
 export const admins = pgTable('admins', {
   id: varchar('id', { length: 50 }).primaryKey(),
@@ -141,7 +141,7 @@ export const overtimeRequests = pgTable('overtime_requests', {
   employeeId: varchar('employee_id', { length: 50 }).notNull().references(() => employees.id, { onDelete: 'cascade' }),
   requestDate: timestamp('request_date').notNull(),
   reason: text('reason').notNull(),
-  hours: integer('hours').notNull(),
+  hours: real('hours').notNull(),
   status: requestStatusEnum('status').default('Pending'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

@@ -90,14 +90,14 @@ export default function Monitoring() {
           const attList = (data.attendances || []).map((a: any) => {
             let formattedDate = a.date;
             if (!formattedDate && a.attendanceDate) {
-              formattedDate = format(new Date(a.attendanceDate), 'yyyy-MM-dd');
+              formattedDate = typeof a.attendanceDate === 'string' ? a.attendanceDate.split('T')[0] : format(new Date(a.attendanceDate), 'yyyy-MM-dd');
             }
             return { ...a, date: formattedDate };
           });
           setAttendances(attList);
           
           const schedList = (data.schedules || []).map((s: any) => {
-            return { ...s, dateFormatted: s.date ? format(new Date(s.date), 'yyyy-MM-dd') : null };
+            return { ...s, dateFormatted: s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : format(new Date(s.date), 'yyyy-MM-dd')) : null };
           });
           setSchedules(schedList);
         }
@@ -211,13 +211,21 @@ export default function Monitoring() {
       const allAttendances = (freshData.attendances || []).map((a: any) => {
         let formattedDate = a.date;
         if (!formattedDate && a.attendanceDate) {
-          formattedDate = format(new Date(a.attendanceDate), 'yyyy-MM-dd');
+          formattedDate = typeof a.attendanceDate === 'string' ? a.attendanceDate.split('T')[0] : format(new Date(a.attendanceDate), 'yyyy-MM-dd');
         }
         return { ...a, date: formattedDate };
       });
       
       const freshSchedules = (freshData.schedules || []).map((s: any) => {
-        return { ...s, dateFormatted: s.date ? format(new Date(s.date), 'yyyy-MM-dd') : null };
+        return { ...s, dateFormatted: s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : format(new Date(s.date), 'yyyy-MM-dd')) : null };
+      });
+
+      const freshLeaveRequests = (freshData.leaveRequests || []).map((l: any) => {
+        return { ...l, dateFormatted: l.requestDate ? (typeof l.requestDate === 'string' ? l.requestDate.split('T')[0] : format(new Date(l.requestDate), 'yyyy-MM-dd')) : null };
+      });
+
+      const freshOvertimeRequests = (freshData.overtimeRequests || []).map((o: any) => {
+        return { ...o, dateFormatted: o.requestDate ? (typeof o.requestDate === 'string' ? o.requestDate.split('T')[0] : format(new Date(o.requestDate), 'yyyy-MM-dd')) : null };
       });
 
       // 1. Use loaded Employees
@@ -283,19 +291,36 @@ export default function Monitoring() {
           dates.forEach(d => {
               const att = allAttendances.find(a => (a.employeeId === emp.id || a.employeeId === emp.name) && a.date === d);
               const sched = freshSchedules.find((s: any) => s.employeeId === emp.id && s.dateFormatted === d);
+              const leave = freshLeaveRequests.find((l: any) => l.employeeId === emp.id && l.dateFormatted === d && l.status === 'Approved');
+              const overtime = freshOvertimeRequests.find((o: any) => o.employeeId === emp.id && o.dateFormatted === d && o.status === 'Approved');
               
               if (att) {
+                  const statusStr = (att.status || '').toLowerCase();
+                  
+                  // Hitung Keterangan
+                  let keterangan = att.status || 'Hadir';
+                  if (statusStr === 'izin' || statusStr === 'sakit') {
+                     keterangan = `${att.status} - ${leave?.reason || 'Tidak ada alasan'}`;
+                  } else if (overtime) {
+                     keterangan = `Lembur (${overtime.hours} Jam): ${overtime.reason}`;
+                  } else if (att.isLate) {
+                     keterangan = 'Hadir (Terlambat)';
+                  }
+                  
                   row.push(att.timeIn || '');
                   row.push(att.timeOut || '');
-                  row.push(''); // lembur masuk
+                  row.push(overtime && overtime.hours ? 'Lembur' : ''); // lembur masuk
                   row.push(''); // lembur pulang
-                  row.push(att.status || 'Hadir');
+                  row.push(keterangan);
 
-                  const statusStr = (att.status || '').toLowerCase();
                   if (statusStr === 'hadir') masuk++;
                   if (att.isLate) telat++;
                   if (statusStr === 'izin' || statusStr === 'sakit') izinCount++;
                   if (statusStr === 'alpa') alpaCount++;
+              } else if (leave) {
+                  // Ada pengajuan izin yang disetujui tetapi belum masuk di absensi (Mungkin gagal tersinkron atau manual)
+                  row.push('', '', '', '', `${leave.type} - ${leave.reason}`);
+                  izinCount++;
               } else if (sched && sched.isOffDay) {
                   row.push('', '', '', '', 'Libur / Off');
               } else {
