@@ -334,9 +334,12 @@ apiRouter.post('/admin/monitoring-data', async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.body;
     
-    // Konversi string YYYY-MM-DD ke Date
+    // Konversi string YYYY-MM-DD ke Date dan perluas jangkauan waktu untuk menghindari masalah zona waktu (terpotongnya absen pagi di Asia)
     const fromDate = dateFrom ? new Date(dateFrom + 'T00:00:00.000Z') : new Date();
     const toDate = dateTo ? new Date(dateTo + 'T23:59:59.999Z') : new Date();
+    
+    fromDate.setHours(fromDate.getHours() - 14);
+    toDate.setHours(toDate.getHours() + 14);
 
     const queries = [
       db.select().from(locations),

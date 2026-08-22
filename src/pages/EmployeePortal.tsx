@@ -623,26 +623,27 @@ export default function EmployeePortal() {
         if (myLoc) setOfficeLocation(myLoc);
       }
 
-      // 2. Compute dynamic 7-day schedule
+      // 2. Compute dynamic 7-day schedule (including yesterday for cross-day shift context)
       if (responses[1]) {
          try {
            const schRes = responses[1];
            if (schRes.ok) {
               const computedSchedules = await schRes.json();
-              const today = new Date();
-              today.setHours(0,0,0,0);
-              const nextWeek = new Date(today);
-              nextWeek.setDate(today.getDate() + 7);
+              const yesterday = new Date();
+              yesterday.setDate(yesterday.getDate() - 1);
+              yesterday.setHours(0,0,0,0);
+              const nextWeek = new Date();
+              nextWeek.setDate(nextWeek.getDate() + 7);
               
               const dashboardSchedules = computedSchedules.filter((s: any) => {
                  const sDate = new Date(s.date);
-                 return sDate >= today && sDate < nextWeek;
+                 return sDate >= yesterday && sDate < nextWeek;
               });
               setSchedulesList(dashboardSchedules);
               
               const futureSchedules = computedSchedules.filter((s: any) => {
                  const sDate = new Date(s.date);
-                 return sDate >= today && !s.isOffDay;
+                 return sDate >= yesterday && !s.isOffDay;
               });
               setMyFutureSchedules(futureSchedules);
            }
@@ -659,12 +660,43 @@ export default function EmployeePortal() {
         const y = now.getFullYear();
         const m = now.getMonth();
         const d = now.getDate();
-        const todayAtt = attData.find((a: any) => {
+        let targetAtt = attData.find((a: any) => {
           const aDate = new Date(a.attendanceDate);
           return aDate.getFullYear() === y && aDate.getMonth() === m && aDate.getDate() === d;
         });
-        if (todayAtt) {
-          setTodayAttendance(todayAtt);
+
+        // If no attendance today OR today's attendance has no timeIn, check for uncompleted shift from yesterday (cross-day night shift)
+        if (!targetAtt || (!targetAtt.timeIn && !targetAtt.timeOut)) {
+          const yesterday = new Date(now);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yy = yesterday.getFullYear();
+          const ym = yesterday.getMonth();
+          const yd = yesterday.getDate();
+          const yesterdayAtt = attData.find((a: any) => {
+            const aDate = new Date(a.attendanceDate);
+            return aDate.getFullYear() === yy && aDate.getMonth() === ym && aDate.getDate() === yd;
+          });
+          if (yesterdayAtt && !yesterdayAtt.timeOut && yesterdayAtt.status !== 'Ditolak') {
+            targetAtt = yesterdayAtt;
+          }
+        }
+
+        // Also check if there's any active incomplete attendance from the last 36 hours
+        if (!targetAtt || (targetAtt.timeOut && targetAtt.status !== 'Ditolak')) {
+          const incompleteAtt = attData.find((a: any) => {
+            if (a.timeOut || a.status === 'Ditolak') return false;
+            const diffHours = (now.getTime() - new Date(a.attendanceDate).getTime()) / (1000 * 60 * 60);
+            return diffHours >= 0 && diffHours <= 36;
+          });
+          if (incompleteAtt && (!targetAtt || !targetAtt.timeIn)) {
+            targetAtt = incompleteAtt;
+          }
+        }
+
+        if (targetAtt) {
+          setTodayAttendance(targetAtt);
+        } else {
+          setTodayAttendance(null);
         }
       }
 
@@ -690,16 +722,28 @@ export default function EmployeePortal() {
           setAllSubDeptEmployees(list.filter((e: any) => e.id !== currentEmployee.id));
         }
 
-        // Fetch team attendances to show in Squad Command Panel
+        // Fetch team attendances to show in Squad Command Panel (including yesterday's night shift)
         if (data.teamAttendances) {
-          // only show attendances for today
           const now = new Date();
-          const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+          const y = now.getFullYear();
+          const m = now.getMonth();
+          const d = now.getDate();
           
-          const todaysTeam = data.teamAttendances.filter((a: any) => {
-            return new Date(a.attendanceDate).toISOString().split('T')[0] === todayStr && a.employeeId !== currentEmployee.id;
+          const yesterday = new Date(now);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yy = yesterday.getFullYear();
+          const ym = yesterday.getMonth();
+          const yd = yesterday.getDate();
+
+          const activeTeam = data.teamAttendances.filter((a: any) => {
+            if (a.employeeId === currentEmployee.id) return false;
+            const aDate = new Date(a.attendanceDate);
+            const isToday = aDate.getFullYear() === y && aDate.getMonth() === m && aDate.getDate() === d;
+            const isYesterday = aDate.getFullYear() === yy && aDate.getMonth() === ym && aDate.getDate() === yd;
+            const isIncompleteRecent = !a.timeOut && a.status !== 'Ditolak' && (now.getTime() - aDate.getTime()) <= 36 * 60 * 60 * 1000;
+            return isToday || isYesterday || isIncompleteRecent;
           });
-          setTeamAttendances(todaysTeam);
+          setTeamAttendances(activeTeam);
         }
       }
 
@@ -964,13 +1008,13 @@ export default function EmployeePortal() {
       // Update history locally
       if (!isGroupAttendance) {
         setAttendancesHistory(prev => prev.map(a => 
-          a.employeeId === targetEmployeeId && new Date(a.attendanceDate).toISOString().split('T')[0] === todayStr
+          a.employeeId === targetEmployeeId && !a.timeOut
             ? { ...a, timeOut: currentTimeStr, photoUrl: selfiePreview || a.photoUrl }
             : a
         ));
       } else {
         setTeamAttendances(prev => prev.map(a => 
-          a.employeeId === targetEmployeeId && new Date(a.attendanceDate).toISOString().split('T')[0] === todayStr
+          a.employeeId === targetEmployeeId && !a.timeOut
             ? { ...a, timeOut: currentTimeStr, photoUrl: selfiePreview || a.photoUrl }
             : a
         ));
@@ -984,7 +1028,7 @@ export default function EmployeePortal() {
       // Background sync
       (async () => {
         try {
-          if (isGroupAttendance) {
+          if (isGroupAttendance || !targetAttId) {
             const memberAttRes = await fetch(API_BASE_URL + '/api/sql/rpc', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -996,8 +1040,18 @@ export default function EmployeePortal() {
             });
             if (memberAttRes.ok) {
               const history = await memberAttRes.json();
-              const memberToday = history.find((a: any) => new Date(a.attendanceDate).toISOString().split('T')[0] === todayStr);
-              targetAttId = memberToday?.id;
+              
+              // Find latest incomplete attendance (could be today or yesterday for cross-day shift)
+              const incomplete = history
+                .filter((a: any) => !a.timeOut && a.status !== 'Ditolak')
+                .sort((a: any, b: any) => new Date(b.attendanceDate).getTime() - new Date(a.attendanceDate).getTime())[0];
+                
+              if (incomplete) {
+                targetAttId = incomplete.id;
+              } else {
+                let memberToday = history.find((a: any) => new Date(a.attendanceDate).toISOString().split('T')[0] === todayStr);
+                targetAttId = memberToday?.id;
+              }
             }
           }
 
@@ -1018,7 +1072,7 @@ export default function EmployeePortal() {
             });
             if (!res.ok) throw new Error("Gagal update absen pulang");
           } else {
-            // fallback add
+            // Fallback: create clock-out attendance record properly
             const payload = {
               action: 'addDoc',
               collection: 'attendances',
@@ -1026,9 +1080,9 @@ export default function EmployeePortal() {
                 employeeId: targetEmployeeId,
                 attendanceDate: new Date(),
                 status: 'Hadir',
-                timeIn: currentTimeStr,
-                timeOut: null,
-                isLate: calculatedIsLate,
+                timeIn: '00:00',
+                timeOut: currentTimeStr,
+                isLate: false,
                 photoUrl: selfiePreview,
               }
             };
@@ -1257,13 +1311,16 @@ export default function EmployeePortal() {
 
     // Check today's schedule off-day
     const todaySchedule = schedulesList.find(sch => sch.date === todayStr);
-    
     const isTodayOffDay = todaySchedule?.isOffDay === true;
 
+    // If employee is actively clocked in without clock-out, they are currently on duty (e.g. night shift cross-day)
+    const hasActiveClockIn = !!(todayAttendance && !todayAttendance.timeOut && todayAttendance.status !== 'Ditolak');
+
     return {
-      isRestState: hasApprovedLeave || isTodayOffDay,
+      isRestState: !hasActiveClockIn && (hasApprovedLeave || isTodayOffDay),
       hasClockedOut: todayAttendance?.timeOut !== null && todayAttendance?.timeOut !== undefined,
-      isApprovedLeave: hasApprovedLeave
+      isApprovedLeave: hasApprovedLeave,
+      hasActiveClockIn
     };
   };
 
@@ -1301,8 +1358,43 @@ export default function EmployeePortal() {
   };
 
   // Attendance timing validation helpers
-  const getTodayScheduleDetails = () => {
+  const getActiveScheduleDetails = () => {
     const now = new Date();
+    
+    // If employee is actively clocked in and hasn't clocked out (e.g. night shift cross-day)
+    if (todayAttendance && !todayAttendance.timeOut && todayAttendance.status !== 'Ditolak') {
+      const attDate = new Date(todayAttendance.attendanceDate);
+      const ay = attDate.getFullYear();
+      const am = attDate.getMonth();
+      const ad = attDate.getDate();
+      
+      const attSch = schedulesList.find(s => {
+        const sDate = new Date(s.date);
+        return sDate.getFullYear() === ay && sDate.getMonth() === am && sDate.getDate() === ad;
+      });
+      
+      if (attSch) {
+        return {
+          shiftStart: attSch.shiftStart || "23:00",
+          shiftEnd: attSch.shiftEnd || "07:00",
+          isOffDay: false, // Active shift in progress
+          shiftName: attSch.shiftName || "Shift Dinas"
+        };
+      }
+      
+      // Fallback: If timeIn was recorded in evening/night (after 18:00 or before 05:00)
+      const inHour = todayAttendance.timeIn ? parseInt(todayAttendance.timeIn.split(':')[0], 10) : 23;
+      if (inHour >= 18 || inHour <= 4) {
+        return {
+          shiftStart: todayAttendance.timeIn || "23:00",
+          shiftEnd: "07:00",
+          isOffDay: false,
+          shiftName: "Shift Malam"
+        };
+      }
+    }
+
+    // Default: Today's schedule from roster
     const y = now.getFullYear();
     const m = now.getMonth();
     const d = now.getDate();
@@ -1319,6 +1411,8 @@ export default function EmployeePortal() {
       shiftName: sch?.shiftName || "Shift Reguler"
     };
   };
+
+  const getTodayScheduleDetails = () => getActiveScheduleDetails();
 
   const getAttendanceButtonState = () => {
     const sch = getTodayScheduleDetails();
@@ -1362,38 +1456,45 @@ export default function EmployeePortal() {
   };
 
   const getClockOutButtonState = () => {
-    const sch = getTodayScheduleDetails();
-    if (sch.isOffDay) {
-      return { isEnabled: false, reason: "Hari ini adalah jadwal libur (Off Day)." };
+    // If the employee is actively clocked in:
+    if (todayAttendance && !todayAttendance.timeOut && todayAttendance.status !== 'Ditolak') {
+      const sch = getActiveScheduleDetails();
+      const [endH, endM] = sch.shiftEnd.split(':').map(Number);
+      
+      if (!isNaN(endH)) {
+        // Calculate shift end datetime relative to attendance clock-in date
+        const attDate = new Date(todayAttendance.attendanceDate);
+        const [startH, startM] = sch.shiftStart.split(':').map(Number);
+        
+        const startObj = new Date(attDate.getTime());
+        startObj.setHours(isNaN(startH) ? 0 : startH, isNaN(startM) ? 0 : startM, 0, 0);
+
+        const endObj = new Date(attDate.getTime());
+        endObj.setHours(endH, isNaN(endM) ? 0 : endM, 0, 0);
+
+        // If shift crosses midnight into next day (end <= start)
+        if (endObj.getTime() <= startObj.getTime()) {
+          endObj.setDate(endObj.getDate() + 1);
+        }
+
+        // Allow clocking out up to 15 minutes before official shiftEnd (e.g. 06:45 for 07:00 shiftEnd) or anytime after
+        const allowableClockOutTime = new Date(endObj.getTime() - 15 * 60 * 1000);
+        
+        if (currentTime.getTime() < allowableClockOutTime.getTime()) {
+          return { 
+            isEnabled: false, 
+            reason: `Tombol hanya aktif menjelang/setelah waktu pulang (${sch.shiftEnd}).` 
+          };
+        }
+
+        return { isEnabled: true, reason: "" };
+      }
+
+      // If no valid end hour, enable clock out by default since they are clocked in
+      return { isEnabled: true, reason: "" };
     }
 
-    const [startH, startM] = sch.shiftStart.split(':').map(Number);
-    if (isNaN(startH)) return { isEnabled: false, reason: "Format jadwal salah atau sedang libur." };
-    const startObj = new Date(currentTime.getTime());
-    startObj.setHours(startH, startM, 0, 0);
-
-    const [endH, endM] = sch.shiftEnd.split(':').map(Number);
-    const endObj = new Date(currentTime.getTime());
-    endObj.setHours(endH, endM, 0, 0);
-
-    if (endObj.getTime() <= startObj.getTime()) {
-       if (currentTime.getHours() < endH || (currentTime.getHours() === endH && currentTime.getMinutes() <= endM)) {
-         startObj.setDate(startObj.getDate() - 1);
-       } else {
-         endObj.setDate(endObj.getDate() + 1);
-       }
-    }
-
-    const hasPassedShiftEnd = currentTime.getTime() >= endObj.getTime();
-
-    if (!hasPassedShiftEnd) {
-      return { 
-        isEnabled: false, 
-        reason: `Tombol hanya aktif setelah memasuki waktu pulang (${sch.shiftEnd}).` 
-      };
-    }
-
-    return { isEnabled: true, reason: "" };
+    return { isEnabled: false, reason: "Anda belum melakukan absen masuk." };
   };
 
   // Overtime validation
@@ -1415,11 +1516,41 @@ export default function EmployeePortal() {
     const y = now.getFullYear();
     const m = now.getMonth();
     const d = now.getDate();
-    return teamAttendances.find(a => {
+    
+    // First, check if there is an attendance recorded today
+    const todayAtt = teamAttendances.find(a => {
       if (a.employeeId !== memberId) return false;
       const aDate = new Date(a.attendanceDate);
       return aDate.getFullYear() === y && aDate.getMonth() === m && aDate.getDate() === d;
     });
+
+    if (todayAtt) return todayAtt;
+
+    // If no attendance today, check if member has an uncompleted attendance from yesterday or recent (night shift)
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yy = yesterday.getFullYear();
+    const ym = yesterday.getMonth();
+    const yd = yesterday.getDate();
+    
+    const yesterdayAtt = teamAttendances.find(a => {
+      if (a.employeeId !== memberId) return false;
+      const aDate = new Date(a.attendanceDate);
+      return aDate.getFullYear() === yy && aDate.getMonth() === ym && aDate.getDate() === yd;
+    });
+
+    if (yesterdayAtt && !yesterdayAtt.timeOut && yesterdayAtt.status !== 'Ditolak') {
+      return yesterdayAtt;
+    }
+
+    // Also look for any incomplete attendance in the last 36 hours
+    const recentIncomplete = teamAttendances.find(a => {
+      if (a.employeeId !== memberId || a.timeOut || a.status === 'Ditolak') return false;
+      const diffHours = (now.getTime() - new Date(a.attendanceDate).getTime()) / (1000 * 60 * 60);
+      return diffHours >= 0 && diffHours <= 36;
+    });
+
+    return recentIncomplete || undefined;
   };
 
   const handleOpenAttendanceModal = (type: 'masuk' | 'pulang' | 'lembur_masuk' | 'lembur_pulang') => {

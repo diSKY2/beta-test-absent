@@ -117,10 +117,11 @@ export default function Monitoring() {
 
   const getDaysArray = (startStr: string, endStr: string) => {
     const dates: string[] = [];
-    const start = new Date(startStr);
-    const end = new Date(endStr);
-    for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
-      dates.push(format(dt, 'yyyy-MM-dd'));
+    let current = new Date(startStr + 'T00:00:00');
+    const last = new Date(endStr + 'T00:00:00');
+    while (current <= last) {
+      dates.push(format(current, 'yyyy-MM-dd'));
+      current.setDate(current.getDate() + 1);
     }
     return dates;
   };
@@ -192,18 +193,43 @@ export default function Monitoring() {
 
   const handleExport = async () => {
     try {
+      toast.triggerToast('Menyiapkan data export, mohon tunggu...');
+      
+      // Ambil data fresh dari API untuk memastikan semua range tanggal ikut (bukan cuma state saat ini)
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+      const res = await fetch(baseUrl + '/api/admin/monitoring-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dateFrom,
+          dateTo: dateTo >= dateFrom ? dateTo : dateFrom
+        })
+      });
+      if (!res.ok) throw new Error('Gagal memuat data terbaru dari server');
+      const freshData = await res.json();
+      
+      const allAttendances = (freshData.attendances || []).map((a: any) => {
+        let formattedDate = a.date;
+        if (!formattedDate && a.attendanceDate) {
+          formattedDate = format(new Date(a.attendanceDate), 'yyyy-MM-dd');
+        }
+        return { ...a, date: formattedDate };
+      });
+      
+      const freshSchedules = (freshData.schedules || []).map((s: any) => {
+        return { ...s, dateFormatted: s.date ? format(new Date(s.date), 'yyyy-MM-dd') : null };
+      });
+
       // 1. Use loaded Employees
       let allEmployees = filteredEmployees;
 
-      // 2. Use loaded Attendances
-      const allAttendances = attendances;
-
       // 3. Prepare dates
-      const start = new Date(dateFrom);
-      const end = new Date(dateTo);
       const dates: string[] = [];
-      for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
-        dates.push(format(dt, 'yyyy-MM-dd'));
+      let current = new Date(dateFrom + 'T00:00:00');
+      const last = new Date((dateTo >= dateFrom ? dateTo : dateFrom) + 'T00:00:00');
+      while (current <= last) {
+        dates.push(format(current, 'yyyy-MM-dd'));
+        current.setDate(current.getDate() + 1);
       }
 
       const aoa: any[][] = [];
@@ -216,7 +242,9 @@ export default function Monitoring() {
       aoa.push([]);
 
       // Row 3
-      aoa.push(['Jadwal Tgl', '', '', '', `${format(start, 'dd-MM-yyyy')} s/d ${format(end, 'dd-MM-yyyy')}`]);
+      const startDateObj = new Date(dateFrom + 'T00:00:00');
+      const endDateObj = new Date((dateTo >= dateFrom ? dateTo : dateFrom) + 'T00:00:00');
+      aoa.push(['Jadwal Tgl', '', '', '', `${format(startDateObj, 'dd-MM-yyyy')} s/d ${format(endDateObj, 'dd-MM-yyyy')}`]);
 
       // Row 4
       const row4 = ['NIK', 'Nama', 'DIVISI', 'REGU'];
@@ -254,7 +282,7 @@ export default function Monitoring() {
 
           dates.forEach(d => {
               const att = allAttendances.find(a => (a.employeeId === emp.id || a.employeeId === emp.name) && a.date === d);
-              const sched = schedules.find(s => s.employeeId === emp.id && s.dateFormatted === d);
+              const sched = freshSchedules.find((s: any) => s.employeeId === emp.id && s.dateFormatted === d);
               
               if (att) {
                   row.push(att.timeIn || '');

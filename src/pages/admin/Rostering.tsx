@@ -60,6 +60,7 @@ export default function Rostering() {
   }, [pattern]);
 
   // New Shift Type Form State
+  const [editShiftId, setEditShiftId] = useState<string | null>(null);
   const [newShift, setNewShift] = useState<Partial<ShiftType>>({
     name: '',
     startTime: '08:00',
@@ -132,18 +133,45 @@ export default function Rostering() {
     e.preventDefault();
     if (!newShift.name || !selectedSub) return;
     try {
-      const docRef = await addDoc(collection(db, 'shift_types'), {
-        ...newShift,
-        subDepartmentId: selectedSub,
-        createdAt: Date.now()
-      });
-      setShiftTypes(prev => [...prev, { id: docRef.id, ...newShift, subDepartmentId: selectedSub } as ShiftType]);
+      if (editShiftId) {
+        await setDoc(doc(db, 'shift_types', editShiftId), {
+          ...newShift,
+          updatedAt: Date.now()
+        }, { merge: true });
+        setShiftTypes(prev => prev.map(s => s.id === editShiftId ? { ...s, ...newShift } as ShiftType : s));
+        setEditShiftId(null);
+        toast.success('Jam shift berhasil diperbarui');
+      } else {
+        const docRef = await addDoc(collection(db, 'shift_types'), {
+          ...newShift,
+          subDepartmentId: selectedSub,
+          createdAt: Date.now()
+        });
+        setShiftTypes(prev => [...prev, { id: docRef.id, ...newShift, subDepartmentId: selectedSub } as ShiftType]);
+        toast.success('Jam shift baru berhasil disimpan');
+      }
       setNewShift({ name: '', startTime: '08:00', endTime: '17:00', isCrossDay: false, isOffDay: false, color: 'bg-blue-100 text-blue-700' });
-      toast.success('Jam shift baru berhasil disimpan');
     } catch (err: any) {
       console.error(err);
       toast.error('Gagal menyimpan jam shift: ' + err.message);
     }
+  };
+  
+  const handleEditClick = (st: ShiftType) => {
+    setNewShift({
+      name: st.name,
+      startTime: st.startTime,
+      endTime: st.endTime,
+      isCrossDay: st.isCrossDay,
+      isOffDay: st.isOffDay,
+      color: st.color
+    });
+    setEditShiftId(st.id);
+  };
+  
+  const handleCancelEdit = () => {
+    setNewShift({ name: '', startTime: '08:00', endTime: '17:00', isCrossDay: false, isOffDay: false, color: 'bg-blue-100 text-blue-700' });
+    setEditShiftId(null);
   };
 
   const handleDeleteShift = async (id: string) => {
@@ -336,7 +364,7 @@ export default function Rostering() {
               <div className="grid md:grid-cols-2 gap-6">
                  {/* Form */}
                  <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                    <h4 className="font-semibold text-slate-900 mb-4 flex items-center gap-2"><Clock className="w-4 h-4"/> Tambah Jam Shift Baru</h4>
+                    <h4 className="font-semibold text-slate-900 mb-4 flex items-center gap-2"><Clock className="w-4 h-4"/> {editShiftId ? 'Edit Jam Shift' : 'Tambah Jam Shift Baru'}</h4>
                     <form onSubmit={handleSaveShift} className="space-y-4">
                        <div>
                          <label className="block text-xs font-medium text-slate-600 mb-1">Nama Shift (Misal: Pagi, Malam, Libur)</label>
@@ -384,7 +412,12 @@ export default function Rostering() {
                          </div>
                        </div>
                        
-                       <button type="submit" className="w-full bg-blue-600 text-white font-medium text-sm py-2 rounded-lg hover:bg-indigo-700">Simpan Jam Shift</button>
+                       <div className="flex gap-2">
+                         <button type="submit" className="flex-1 bg-blue-600 text-white font-medium text-sm py-2 rounded-lg hover:bg-indigo-700">{editShiftId ? 'Update' : 'Simpan'}</button>
+                         {editShiftId && (
+                           <button type="button" onClick={handleCancelEdit} className="flex-1 bg-slate-200 text-slate-700 font-medium text-sm py-2 rounded-lg hover:bg-slate-300">Batal</button>
+                         )}
+                       </div>
                     </form>
                  </div>
 
@@ -403,7 +436,10 @@ export default function Rostering() {
                                      <div className="text-xs opacity-80 mt-1">{st.startTime} - {st.endTime} {st.isCrossDay && '(Besoknya)'}</div>
                                    )}
                                 </div>
-                                <button onClick={()=>handleDeleteShift(st.id)} className="p-2 bg-white/50 hover:bg-white/80 rounded-lg text-rose-600"><Trash2 className="w-4 h-4"/></button>
+                                <div className="flex gap-1">
+                                  <button onClick={()=>handleEditClick(st)} className="p-2 bg-white/50 hover:bg-white/80 rounded-lg text-blue-600"><Edit2 className="w-4 h-4"/></button>
+                                  <button onClick={()=>handleDeleteShift(st.id)} className="p-2 bg-white/50 hover:bg-white/80 rounded-lg text-rose-600"><Trash2 className="w-4 h-4"/></button>
+                                </div>
                              </div>
                           ))}
                        </div>
