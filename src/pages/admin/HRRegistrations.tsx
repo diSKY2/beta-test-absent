@@ -14,7 +14,7 @@ export default function HRRegistrations() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
   const { user } = useAuth();
-  const { triggerToast } = useToast();
+  const toast = useToast();
 
   useEffect(() => {
     fetchData();
@@ -38,7 +38,7 @@ export default function HRRegistrations() {
       if (subRes.ok) setSubDepartments(await subRes.json());
       
     } catch (err: any) {
-      triggerToast('Gagal mengambil data: ' + err.message);
+      toast.info('Gagal mengambil data: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -55,13 +55,13 @@ export default function HRRegistrations() {
         body: JSON.stringify({ status })
       });
       if (res.ok) {
-        triggerToast(`Registrasi berhasil diperbarui ke: ${status}`);
+        toast.info(`Registrasi berhasil diperbarui ke: ${status}`);
         fetchData();
       } else {
-        triggerToast('Gagal memperbarui status');
+        toast.info('Gagal memperbarui status');
       }
     } catch (err: any) {
-      triggerToast('Error: ' + err.message);
+      toast.info('Error: ' + err.message);
     }
   };
 

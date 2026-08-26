@@ -14,6 +14,8 @@ interface ShiftType {
   startTime: string;
   endTime: string;
   isCrossDay: boolean;
+  isFlexible: boolean;
+  isWfa: boolean;
   isOffDay: boolean;
   color: string;
 }
@@ -66,6 +68,8 @@ export default function Rostering() {
     startTime: '08:00',
     endTime: '17:00',
     isCrossDay: false,
+    isFlexible: false,
+    isWfa: false,
     isOffDay: false,
     color: 'bg-blue-100 text-blue-700'
   });
@@ -150,7 +154,7 @@ export default function Rostering() {
         setShiftTypes(prev => [...prev, { id: docRef.id, ...newShift, subDepartmentId: selectedSub } as ShiftType]);
         toast.success('Jam shift baru berhasil disimpan');
       }
-      setNewShift({ name: '', startTime: '08:00', endTime: '17:00', isCrossDay: false, isOffDay: false, color: 'bg-blue-100 text-blue-700' });
+      setNewShift({ name: '', startTime: '08:00', endTime: '17:00', isCrossDay: false, isFlexible: false, isWfa: false, isOffDay: false, color: 'bg-blue-100 text-blue-700' });
     } catch (err: any) {
       console.error(err);
       toast.error('Gagal menyimpan jam shift: ' + err.message);
@@ -394,6 +398,20 @@ export default function Rostering() {
                                Lintas Hari (Centang jika jadwal pulang masuk ke hari berikutnya. Misal: Masuk jam 22:00, Pulang jam 07:00 Pagi besoknya)
                              </label>
                            </div>
+                           
+                           <div className="flex items-start gap-2 bg-teal-50 p-3 rounded-lg border border-teal-100 text-teal-800 text-xs shadow-lg">
+                             <input type="checkbox" id="flexi" checked={newShift.isFlexible} onChange={e=>setNewShift({...newShift, isFlexible: e.target.checked})} className="rounded mt-0.5 text-teal-600" />
+                             <label htmlFor="flexi" className="font-medium leading-relaxed">
+                               Flexible Time (Pegawai bebas melakukan absen masuk kapan saja tanpa dihitung terlambat)
+                             </label>
+                           </div>
+
+                           <div className="flex items-start gap-2 bg-purple-50 p-3 rounded-lg border border-purple-100 text-purple-800 text-xs shadow-lg">
+                             <input type="checkbox" id="wfa" checked={newShift.isWfa} onChange={e=>setNewShift({...newShift, isWfa: e.target.checked})} className="rounded mt-0.5 text-purple-600" />
+                             <label htmlFor="wfa" className="font-medium leading-relaxed">
+                               WFA / Work From Anywhere (Pegawai dapat absen dari lokasi mana saja tanpa dibatasi radius kantor)
+                             </label>
+                           </div>
                          </>
                        )}
 
@@ -433,7 +451,13 @@ export default function Rostering() {
                                    {st.isOffDay ? (
                                      <div className="text-xs opacity-80 mt-1">HARI LIBUR BEBAS TUGAS</div>
                                    ) : (
-                                     <div className="text-xs opacity-80 mt-1">{st.startTime} - {st.endTime} {st.isCrossDay && '(Besoknya)'}</div>
+                                     <div className="text-xs opacity-80 mt-1 flex flex-col gap-1">
+                                       <span>{st.startTime} - {st.endTime} {st.isCrossDay && '(Besoknya)'}</span>
+                                       <div className="flex gap-2 mt-1">
+                                          {st.isFlexible && <span className="bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded text-[10px] font-bold">FLEXIBLE</span>}
+                                          {st.isWfa && <span className="bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded text-[10px] font-bold">WFA</span>}
+                                       </div>
+                                     </div>
                                    )}
                                 </div>
                                 <div className="flex gap-1">

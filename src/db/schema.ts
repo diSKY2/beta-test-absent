@@ -72,6 +72,8 @@ export const shiftTypes = pgTable('shift_types', {
   startTime: time('start_time').notNull(),
   endTime: time('end_time').notNull(),
   isCrossDay: boolean('is_cross_day').default(false),
+  isFlexible: boolean('is_flexible').default(false),
+  isWfa: boolean('is_wfa').default(false),
   isOffDay: boolean('is_off_day').default(false),
   color: varchar('color', { length: 100 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),

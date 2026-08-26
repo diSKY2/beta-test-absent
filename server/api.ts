@@ -1,6 +1,8 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 import { db } from '../src/db';
-import { locations, departments, subDepartments, employees, employeeAllowances, employeeDeductions, admins, employeeRegistrations, shiftExchanges, schedules } from '../src/db/schema';
+import { locations, departments, subDepartments, employees, employeeAllowances, employeeDeductions, admins, employeeRegistrations, shiftExchanges, schedules, companyInfo } from '../src/db/schema';
 import { eq, or, and, inArray, gte, lte } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -678,7 +680,9 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
             shiftName: `Pengganti (${replacedShift.name})`,
             shiftStart: formatTimeStr(replacedShift.startTime),
             shiftEnd: formatTimeStr(replacedShift.endTime),
-            isOffDay: false
+            isOffDay: false,
+            isFlexible: replacedShift.isFlexible,
+            isWfa: replacedShift.isWfa
           });
         } else {
           computed.push({
@@ -728,7 +732,9 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
           shiftName: activeShift.name,
           shiftStart: formatTimeStr(activeShift.startTime),
           shiftEnd: formatTimeStr(activeShift.endTime),
-          isOffDay: activeShift.isOffDay
+          isOffDay: activeShift.isOffDay,
+          isFlexible: activeShift.isFlexible,
+          isWfa: activeShift.isWfa
         });
       } else {
          computed.push({
@@ -741,6 +747,51 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
     }
     
     res.json(computed);
+  } catch(err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.post('/admin/upload-apk', async (req, res) => {
+  try {
+    const { base64Data, version, releaseNotes } = req.body;
+    if (!base64Data) return res.status(400).json({ error: 'No file data' });
+
+    const base64Clean = base64Data.replace(/^data:.*,/, '');
+    const buffer = Buffer.from(base64Clean, 'base64');
+
+    const publicPath = path.join(process.cwd(), 'public', 'app-release.apk');
+    const distPath = path.join(process.cwd(), 'dist', 'app-release.apk');
+
+    try { fs.writeFileSync(publicPath, buffer); } catch(e){}
+    try { fs.writeFileSync(distPath, buffer); } catch(e){}
+
+    const configContent = JSON.stringify({ version: parseInt(version, 10), releaseNotes });
+    const existing = await db.select().from(companyInfo).where(eq(companyInfo.configKey, 'app_version'));
+    if (existing.length > 0) {
+      await db.update(companyInfo).set({ content: configContent, updatedAt: new Date() }).where(eq(companyInfo.configKey, 'app_version'));
+    } else {
+      await db.insert(companyInfo).values({
+        id: uuidv4(),
+        configKey: 'app_version',
+        content: configContent,
+      });
+    }
+
+    res.json({ success: true, message: 'APK uploaded successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.get('/app-version', async (req, res) => {
+  try {
+    const existing = await db.select().from(companyInfo).where(eq(companyInfo.configKey, 'app_version'));
+    if (existing.length > 0) {
+      res.json(JSON.parse(existing[0].content));
+    } else {
+      res.json({ version: 1, releaseNotes: '' });
+    }
   } catch(err: any) {
     res.status(500).json({ error: err.message });
   }

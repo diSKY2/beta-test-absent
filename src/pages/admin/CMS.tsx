@@ -20,14 +20,14 @@ import {
   X,
   AlertCircle,
   Calendar,
-  Award
+  Award, Smartphone
 } from 'lucide-react';
 import { useToast } from '../../providers/ToastProvider';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function CMS() {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'profile' | 'announcements' | 'gallery' | 'agendas'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'announcements' | 'gallery' | 'agendas' | 'appupdate'>('profile');
   
   const [profileInfo, setProfileInfo] = useState({
     name: 'PT. GARUDA TRISULA PERKASA',
@@ -397,6 +397,15 @@ export default function CMS() {
           >
             <Building className="w-3.5 h-3.5" />
             Galeri Media ({galleries.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('appupdate')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'appupdate' ? 'bg-blue-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            Update Aplikasi (APK)
           </button>
         </div>
       </div>
@@ -1068,6 +1077,100 @@ export default function CMS() {
                   </tbody>
                 </table>
               )}
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'appupdate' && (
+          <motion.div
+            key="appupdate-tab"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white/40 rounded-2xl border border-slate-200 flex flex-col overflow-hidden text-slate-800 p-6"
+          >
+            <h3 className="font-extrabold text-slate-900 text-md">Update Aplikasi Mobile (APK)</h3>
+            <p className="text-xs text-slate-600 mt-1 mb-6">Unggah versi terbaru dari aplikasi Android (.apk) agar pegawai dapat mengunduhnya langsung dari dalam aplikasi tanpa melalui web.</p>
+            
+            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 w-full max-w-2xl space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider font-mono block">File APK (Maks 50MB)</label>
+                <input 
+                  type="file" 
+                  accept=".apk"
+                  id="apkUpload"
+                  className="mt-1 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                />
+              </div>
+              
+              <div>
+                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider font-mono block">Version Code (Angka, contoh: 2)</label>
+                <input 
+                  type="number" 
+                  id="apkVersion"
+                  className="mt-1 w-full bg-white border border-slate-200 text-slate-800 text-xs font-semibold rounded-xl px-4 py-3 focus:border-blue-500 outline-none" 
+                  placeholder="2"
+                />
+              </div>
+              
+              <div>
+                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider font-mono block">Release Notes / Catatan Rilis</label>
+                <textarea 
+                  id="apkNotes"
+                  className="mt-1 w-full bg-white border border-slate-200 text-slate-800 text-xs font-semibold rounded-xl px-4 py-3 focus:border-blue-500 outline-none h-24" 
+                  placeholder="Fitur baru, perbaikan bug..."
+                ></textarea>
+              </div>
+              
+              <button 
+                onClick={async () => {
+                   const fileInput = document.getElementById('apkUpload') as HTMLInputElement;
+                   const versionInput = document.getElementById('apkVersion') as HTMLInputElement;
+                   const notesInput = document.getElementById('apkNotes') as HTMLTextAreaElement;
+                   
+                   if (!fileInput.files || fileInput.files.length === 0) {
+                      alert('Pilih file APK terlebih dahulu');
+                      return;
+                   }
+                   if (!versionInput.value) {
+                      alert('Masukkan Version Code');
+                      return;
+                   }
+                   
+                   const file = fileInput.files[0];
+                   const reader = new FileReader();
+                   reader.onload = async (e) => {
+                      const base64Data = e.target?.result as string;
+                      try {
+                        const res = await fetch('/api/admin/upload-apk', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                             base64Data,
+                             version: versionInput.value,
+                             releaseNotes: notesInput.value
+                          })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                           alert('APK berhasil diunggah!');
+                           fileInput.value = '';
+                           versionInput.value = '';
+                           notesInput.value = '';
+                        } else {
+                           alert('Gagal mengunggah APK: ' + data.error);
+                        }
+                      } catch (err: any) {
+                        alert('Error: ' + err.message);
+                      }
+                   };
+                   reader.readAsDataURL(file);
+                }}
+                className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors"
+              >
+                Unggah & Publish Versi Baru
+              </button>
             </div>
           </motion.div>
         )}

@@ -2,7 +2,7 @@ import { format } from 'date-fns';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router';
 import {  
-  Smartphone, Lock, MapPin, Camera, Calendar, FileText, User, 
+  Smartphone, Lock, MapPin, Camera, Download, Calendar, FileText, User, 
   ArrowLeft, Clock, LogOut, CheckCircle2, AlertTriangle, Send, 
   Upload, Eye, EyeOff, Building, Users, CalendarDays, DollarSign,
   ChevronRight, Shield, RefreshCw, Compass, ShieldAlert, Sparkles, Check, HelpCircle, Flame, Search
@@ -83,6 +83,8 @@ interface Schedule {
   shiftStart: string;
   shiftEnd: string;
   isOffDay: boolean;
+  isFlexible?: boolean;
+  isWfa?: boolean;
 }
 
 interface Announcement {
@@ -122,6 +124,10 @@ export default function EmployeePortal() {
   
   // Realtime clock
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // App Update State
+  const [updateAvailable, setUpdateAvailable] = useState<{version: number, releaseNotes: string} | null>(null);
+  const APP_VERSION_CODE = 1; // Current hardcoded app version
   
   // Attendance Pop-up state
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
@@ -298,6 +304,18 @@ export default function EmployeePortal() {
     }
   };
 
+
+
+  useEffect(() => {
+    fetch(API_BASE_URL + '/api/app-version')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.version > APP_VERSION_CODE) {
+          setUpdateAvailable(data);
+        }
+      })
+      .catch(err => console.error('Failed to check app version', err));
+  }, []);
   useEffect(() => {
     if (activeTab === 'tukar_jadwal') {
       fetchShiftExchangesData();
@@ -534,7 +552,7 @@ export default function EmployeePortal() {
         width: 800,
         allowEditing: false,
         resultType: CameraResultType.DataUrl,
-        source: CameraSource.Camera,
+        source: CameraSource.Camera, Download,
         direction: 'FRONT' as any
       });
       if (image.dataUrl) {
@@ -870,7 +888,7 @@ export default function EmployeePortal() {
         width: 800,
         allowEditing: false,
         resultType: CameraResultType.DataUrl,
-        source: CameraSource.Camera,
+        source: CameraSource.Camera, Download,
         direction: 'REAR' as any
       });
       if (image.dataUrl) {
@@ -887,11 +905,18 @@ export default function EmployeePortal() {
   const triggerClockInOrOut = async () => {
     if (!currentEmployee) return;
     
-    // Geofencing limit validation
-    const maxRadius = officeLocation?.radius || 100;
-    if (currentDistance > maxRadius) {
-      alert(`Gagal Absen: Lokasi Anda berada di luar jangkauan area penugasan (${currentDistance}m). Radius maksimum yang diizinkan adalah ${maxRadius}m.`);
-      return;
+    // Check WFA status
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const todaySchedule = schedulesList.find(sch => sch.date.startsWith(todayStr) || sch.date === todayStr);
+    const isWfa = todaySchedule?.isWfa === true;
+    
+    // Geofencing limit validation (bypass if WFA)
+    if (!isWfa) {
+      const maxRadius = officeLocation?.radius || 100;
+      if (currentDistance > maxRadius) {
+        alert(`Gagal Absen: Lokasi Anda berada di luar jangkauan area penugasan (${currentDistance}m). Radius maksimum yang diizinkan adalah ${maxRadius}m.`);
+        return;
+      }
     }
 
     if (!selfiePreview) {
@@ -919,13 +944,13 @@ export default function EmployeePortal() {
       }
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    
     const currentTimeStr = currentTime.toTimeString().split(' ')[0].substring(0, 5); // "HH:MM"
 
     // Calculate isLate automatically
     let calculatedIsLate = false;
     const schDetails = getTodayScheduleDetails();
-    if (schDetails && schDetails.shiftStart) {
+    if (!todaySchedule?.isFlexible && schDetails && schDetails.shiftStart) {
       const [startH, startM] = schDetails.shiftStart.split(':').map(Number);
       const shiftStartObj = new Date();
       shiftStartObj.setHours(startH, startM, 0, 0);
@@ -1378,7 +1403,8 @@ export default function EmployeePortal() {
           shiftStart: attSch.shiftStart || "23:00",
           shiftEnd: attSch.shiftEnd || "07:00",
           isOffDay: false, // Active shift in progress
-          shiftName: attSch.shiftName || "Shift Dinas"
+          shiftName: attSch.shiftName || "Shift Dinas",
+          isFlexible: attSch.isFlexible || false
         };
       }
       
@@ -1389,7 +1415,8 @@ export default function EmployeePortal() {
           shiftStart: todayAttendance.timeIn || "23:00",
           shiftEnd: "07:00",
           isOffDay: false,
-          shiftName: "Shift Malam"
+          shiftName: "Shift Malam",
+          isFlexible: false
         };
       }
     }
@@ -1408,7 +1435,8 @@ export default function EmployeePortal() {
       shiftStart: sch?.shiftStart || "08:00",
       shiftEnd: sch?.shiftEnd || "16:00",
       isOffDay: sch?.isOffDay || false,
-      shiftName: sch?.shiftName || "Shift Reguler"
+      shiftName: sch?.shiftName || "Shift Reguler",
+      isFlexible: sch?.isFlexible || false
     };
   };
 
@@ -1420,6 +1448,7 @@ export default function EmployeePortal() {
       return { isEnabled: false, reason: "Hari ini adalah jadwal libur (Off Day)." };
     }
 
+    if (sch.isFlexible) { return { isEnabled: true, reason: "" }; }
     const [startH, startM] = sch.shiftStart.split(':').map(Number);
     if (isNaN(startH)) return { isEnabled: false, reason: "Format jadwal salah atau sedang libur." };
     const startObj = new Date(currentTime.getTime());
@@ -1464,6 +1493,7 @@ export default function EmployeePortal() {
       if (!isNaN(endH)) {
         // Calculate shift end datetime relative to attendance clock-in date
         const attDate = new Date(todayAttendance.attendanceDate);
+        if (sch.isFlexible) { return { isEnabled: true, reason: "" }; }
         const [startH, startM] = sch.shiftStart.split(':').map(Number);
         
         const startObj = new Date(attDate.getTime());
@@ -2499,9 +2529,15 @@ export default function EmployeePortal() {
                                 {sch.isOffDay ? 'LIBUR MINGGUAN' : sch.shiftName || 'SHIFT DINAS'}
                               </strong>
                               {!sch.isOffDay && (
-                                <span className="text-[10px] text-slate-500 font-mono font-bold block">
-                                  Jam Tugas: {sch.shiftStart || '08:00'} s/d {sch.shiftEnd || '16:00'} WIB
-                                </span>
+                                <div className="space-y-1">
+                                  <span className="text-[10px] text-slate-500 font-mono font-bold block">
+                                    Jam Tugas: {sch.shiftStart || '08:00'} s/d {sch.shiftEnd || '16:00'} WIB
+                                  </span>
+                                  <div className="flex gap-2">
+                                    {sch.isFlexible && <span className="bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded text-[8px] font-bold">FLEXIBLE</span>}
+                                    {sch.isWfa && <span className="bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded text-[8px] font-bold">WFA</span>}
+                                  </div>
+                                </div>
                               )}
                             </div>
 
@@ -3048,13 +3084,13 @@ export default function EmployeePortal() {
                 <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4.5 space-y-3">
                   <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Geofence GPS Radar</span>
-                    <span className={`text-[9px] font-mono font-black px-2 py-0.5 rounded-full ${currentDistance <= (officeLocation?.radius || 100) ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                      {currentDistance <= (officeLocation?.radius || 100) ? 'DI DALAM AREA ✓' : 'DI LUAR AREA ⚠'}
+                    <span className={`text-[9px] font-mono font-black px-2 py-0.5 rounded-full ${schedulesList.find(s=>s.date.startsWith(format(new Date(), 'yyyy-MM-dd')))?.isWfa ? 'bg-purple-100 text-purple-800' : currentDistance <= (officeLocation?.radius || 100) ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                      {schedulesList.find(s=>s.date.startsWith(format(new Date(), 'yyyy-MM-dd')))?.isWfa ? 'WFA AKTIF ✓' : currentDistance <= (officeLocation?.radius || 100) ? 'DI DALAM AREA ✓' : 'DI LUAR AREA ⚠'}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-center py-2">
-                    <div className={`w-24 h-24 rounded-full border-2 flex flex-col items-center justify-center relative ${currentDistance <= (officeLocation?.radius || 100) ? 'border-emerald-500 bg-emerald-500/5' : 'border-red-500 bg-red-500/5'}`}>
+                    <div className={`w-24 h-24 rounded-full border-2 flex flex-col items-center justify-center relative ${schedulesList.find(s=>s.date.startsWith(format(new Date(), 'yyyy-MM-dd')))?.isWfa ? 'border-purple-500 bg-purple-500/5' : currentDistance <= (officeLocation?.radius || 100) ? 'border-emerald-500 bg-emerald-500/5' : 'border-red-500 bg-red-500/5'}`}>
                       <div className="text-center">
                         <span className="text-[8px] font-bold uppercase text-slate-400 block">Jarak</span>
                         <strong className="text-lg font-mono font-black text-slate-900 block">{currentDistance}m</strong>
@@ -3265,6 +3301,45 @@ export default function EmployeePortal() {
         )}
       </AnimatePresence>
       {/* ========================================================================= */}
+
+      <AnimatePresence>
+        {updateAvailable && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="bg-slate-900 border-2 border-blue-500 rounded-3xl w-full max-w-sm overflow-hidden flex flex-col relative"
+            >
+              <div className="p-8 text-center flex flex-col items-center">
+                <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mb-6">
+                  <Download className="w-8 h-8" />
+                </div>
+                <h2 className="text-xl font-black text-white mb-2">Update Versi Terbaru!</h2>
+                <p className="text-sm text-slate-400 mb-6">Versi terbaru dari aplikasi portal telah tersedia. Silakan perbarui untuk mendapatkan fitur dan perbaikan terbaru.</p>
+                
+                {updateAvailable.releaseNotes && (
+                  <div className="w-full bg-slate-800 rounded-xl p-4 mb-6 text-left border border-slate-700">
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Catatan Rilis:</h4>
+                    <p className="text-sm text-slate-300 whitespace-pre-wrap">{updateAvailable.releaseNotes}</p>
+                  </div>
+                )}
+                
+                <button
+                  onClick={() => {
+                     window.open(API_BASE_URL + '/app-release.apk', '_system');
+                     setUpdateAvailable(null); // optional: hide after clicked
+                  }}
+                  className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:opacity-95 text-white font-black rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-blue-900/50 flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Update Sekarang</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
     </div>
   );

@@ -35,11 +35,11 @@ export default function Monitoring() {
     if (!confirm("Apakah Anda yakin ingin membatalkan/mereset absensi karyawan ini?")) return;
     try {
       await deleteDoc(doc(db, 'attendances', attendanceId));
-      toast.triggerToast('Absensi berhasil direset/dihapus.');
+      toast.info('Absensi berhasil direset/dihapus.');
       // Update state directly for quick UI update
       setAttendances(prev => prev.filter(a => a.id !== attendanceId));
     } catch (err: any) {
-      toast.triggerToast('Gagal mereset absensi: ' + err.message);
+      toast.info('Gagal mereset absensi: ' + err.message);
     }
   };
 
@@ -193,7 +193,7 @@ export default function Monitoring() {
 
   const handleExport = async () => {
     try {
-      toast.triggerToast('Menyiapkan data export, mohon tunggu...');
+      toast.info('Menyiapkan data export, mohon tunggu...');
       
       // Ambil data fresh dari API untuk memastikan semua range tanggal ikut (bukan cuma state saat ini)
       const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
@@ -344,10 +344,10 @@ export default function Monitoring() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Absensi');
       XLSX.writeFile(wb, `Laporan_Absensi_${dateFrom}_${dateTo}.xlsx`);
-      toast.triggerToast('Pengeksporan laporan absensi berhasil!');
+      toast.info('Pengeksporan laporan absensi berhasil!');
     } catch (err: any) {
       console.error(err);
-      toast.triggerToast('Gagal mengekspor data: ' + err.message);
+      toast.info('Gagal mengekspor data: ' + err.message);
     }
   };
 
