@@ -382,6 +382,7 @@ export default function Rostering() {
 
                        {!newShift.isOffDay && (
                          <>
+                           {!newShift.isFlexible && (
                            <div className="grid grid-cols-2 gap-4">
                               <div>
                                  <label className="block text-xs font-medium text-slate-600 mb-1">Jam Mulai</label>
@@ -392,12 +393,15 @@ export default function Rostering() {
                                  <input required type="time" className="w-full text-sm border-slate-300 rounded-lg bg-white text-slate-900" value={newShift.endTime} onChange={e=>setNewShift({...newShift, endTime: e.target.value})} />
                               </div>
                            </div>
+                           )}
+                           {!newShift.isFlexible && (
                            <div className="flex items-start gap-2 bg-blue-50 p-3 rounded-lg border border-blue-100 text-blue-800 text-xs shadow-lg">
                              <input type="checkbox" id="cross" checked={newShift.isCrossDay} onChange={e=>setNewShift({...newShift, isCrossDay: e.target.checked})} className="rounded mt-0.5 text-blue-600" />
                              <label htmlFor="cross" className="font-medium leading-relaxed">
                                Lintas Hari (Centang jika jadwal pulang masuk ke hari berikutnya. Misal: Masuk jam 22:00, Pulang jam 07:00 Pagi besoknya)
                              </label>
                            </div>
+                           )}
                            
                            <div className="flex items-start gap-2 bg-teal-50 p-3 rounded-lg border border-teal-100 text-teal-800 text-xs shadow-lg">
                              <input type="checkbox" id="flexi" checked={newShift.isFlexible} onChange={e=>setNewShift({...newShift, isFlexible: e.target.checked})} className="rounded mt-0.5 text-teal-600" />
@@ -452,7 +456,7 @@ export default function Rostering() {
                                      <div className="text-xs opacity-80 mt-1">HARI LIBUR BEBAS TUGAS</div>
                                    ) : (
                                      <div className="text-xs opacity-80 mt-1 flex flex-col gap-1">
-                                       <span>{st.startTime} - {st.endTime} {st.isCrossDay && '(Besoknya)'}</span>
+                                       {st.isFlexible ? <span>Jam Bebas (Flexible)</span> : <span>{st.startTime} - {st.endTime} {st.isCrossDay && '(Besoknya)'}</span>}
                                        <div className="flex gap-2 mt-1">
                                           {st.isFlexible && <span className="bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded text-[10px] font-bold">FLEXIBLE</span>}
                                           {st.isWfa && <span className="bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded text-[10px] font-bold">WFA</span>}
@@ -493,7 +497,7 @@ export default function Rostering() {
                            <button key={st.id} type="button" onClick={()=>setLocalSeq([...localSeq, st.id])} className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-indigo-500 bg-white shadow-lg flex items-center justify-between">
                              <div>
                                <div className="font-bold text-sm text-slate-900">{st.name}</div>
-                               <div className="text-xs text-slate-600">{st.isOffDay ? 'Libur' : `${st.startTime}-${st.endTime}`}</div>
+                               <div className="text-xs text-slate-600">{st.isOffDay ? 'Libur' : st.isFlexible ? 'Bebas' : `${st.startTime}-${st.endTime}`}</div>
                              </div>
                              <Plus className="w-4 h-4 text-slate-600" />
                            </button>
@@ -593,7 +597,7 @@ export default function Rostering() {
                                      {sVal ? (
                                         <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${sVal.color}`}>
                                           <div className="font-bold">{sVal.name}</div>
-                                          {!sVal.isOffDay && <div className="opacity-80 text-xs px-2 border-l border-current"> {sVal.startTime} - {sVal.endTime} {sVal.isCrossDay&&'(+1)'}</div>}
+                                          {!sVal.isOffDay && <div className="opacity-80 text-xs px-2 border-l border-current"> {sVal.isFlexible ? 'Flexible' : `${sVal.startTime} - ${sVal.endTime} ${sVal.isCrossDay?'(+1)':''}`}</div>}
                                         </div>
                                      ) : <span className="text-slate-600 italic">Belum mencapai tanggal pola</span>}
                                  </td>

@@ -2514,7 +2514,7 @@ export default function EmployeePortal() {
                               {!sch.isOffDay && (
                                 <div className="space-y-1">
                                   <span className="text-[10px] text-slate-500 font-mono font-bold block">
-                                    Jam Tugas: {sch.shiftStart || '08:00'} s/d {sch.shiftEnd || '16:00'} WIB
+                                    Jam Tugas: {sch.isFlexible ? 'Bebas (Flexible Time)' : `${sch.shiftStart || '08:00'} s/d ${sch.shiftEnd || '16:00'} WIB`}
                                   </span>
                                   <div className="flex gap-2">
                                     {sch.isFlexible && <span className="bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded text-[8px] font-bold">FLEXIBLE</span>}
