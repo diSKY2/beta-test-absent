@@ -307,6 +307,9 @@ export default function EmployeePortal() {
 
 
   useEffect(() => {
+    const isNativeAndroid = (window as any).Capacitor?.isNativePlatform() && navigator.userAgent.toLowerCase().includes('android');
+    if (!isNativeAndroid) return; // Prevent iOS PWA or Web from seeing APK update prompts
+
     fetch(API_BASE_URL + '/api/app-version')
       .then(res => res.json())
       .then(data => {
@@ -552,7 +555,7 @@ export default function EmployeePortal() {
         width: 800,
         allowEditing: false,
         resultType: CameraResultType.DataUrl,
-        source: CameraSource.Camera, Download,
+        source: CameraSource.Camera,
         direction: 'FRONT' as any
       });
       if (image.dataUrl) {
@@ -678,44 +681,38 @@ export default function EmployeePortal() {
         const y = now.getFullYear();
         const m = now.getMonth();
         const d = now.getDate();
-        let targetAtt = attData.find((a: any) => {
-          const aDate = new Date(a.attendanceDate);
-          return aDate.getFullYear() === y && aDate.getMonth() === m && aDate.getDate() === d;
-        });
+        // 3. Resolve active/today attendance
+        const todayStr = format(now, 'yyyy-MM-dd');
+        const schedData = data.schedules || [];
+        const todaySchedule = schedData.find((sch: any) => sch.date === todayStr);
+        const isTodayOffDay = todaySchedule?.isOffDay === true;
 
-        // If no attendance today OR today's attendance has no timeIn, check for uncompleted shift from yesterday (cross-day night shift)
-        if (!targetAtt || (!targetAtt.timeIn && !targetAtt.timeOut)) {
-          const yesterday = new Date(now);
-          yesterday.setDate(yesterday.getDate() - 1);
-          const yy = yesterday.getFullYear();
-          const ym = yesterday.getMonth();
-          const yd = yesterday.getDate();
-          const yesterdayAtt = attData.find((a: any) => {
-            const aDate = new Date(a.attendanceDate);
-            return aDate.getFullYear() === yy && aDate.getMonth() === ym && aDate.getDate() === yd;
-          });
-          if (yesterdayAtt && !yesterdayAtt.timeOut && yesterdayAtt.status !== 'Ditolak') {
-            targetAtt = yesterdayAtt;
+        const latestIncomplete = attData
+          .filter((a: any) => a.timeIn && !a.timeOut && a.status !== 'Ditolak')
+          .sort((a: any, b: any) => new Date(b.attendanceDate).getTime() - new Date(a.attendanceDate).getTime())[0];
+
+        let targetAtt = null;
+
+        if (latestIncomplete) {
+          const aDate = new Date(latestIncomplete.attendanceDate);
+          const diffCalendarDays = Math.floor((new Date(todayStr).getTime() - new Date(format(aDate, 'yyyy-MM-dd')).getTime()) / (1000 * 3600 * 24));
+          
+          if (isTodayOffDay && diffCalendarDays >= 2) {
+             // Drop it, it's the second day of holiday
+             targetAtt = null;
+          } else {
+             targetAtt = latestIncomplete;
           }
         }
 
-        // Also check if there's any active incomplete attendance from the last 36 hours
-        if (!targetAtt || (targetAtt.timeOut && targetAtt.status !== 'Ditolak')) {
-          const incompleteAtt = attData.find((a: any) => {
-            if (a.timeOut || a.status === 'Ditolak') return false;
-            const diffHours = (now.getTime() - new Date(a.attendanceDate).getTime()) / (1000 * 60 * 60);
-            return diffHours >= 0 && diffHours <= 36;
-          });
-          if (incompleteAtt && (!targetAtt || !targetAtt.timeIn)) {
-            targetAtt = incompleteAtt;
-          }
+        if (!targetAtt) {
+           targetAtt = attData.find((a: any) => {
+              const aDateStr = typeof a.attendanceDate === 'string' ? a.attendanceDate.split('T')[0] : new Date(a.attendanceDate).toISOString().split('T')[0];
+              return aDateStr === todayStr;
+           });
         }
 
-        if (targetAtt) {
-          setTodayAttendance(targetAtt);
-        } else {
-          setTodayAttendance(null);
-        }
+        setTodayAttendance(targetAtt || null);
       }
 
       // 4. Fetch leave history
@@ -758,7 +755,7 @@ export default function EmployeePortal() {
             const aDate = new Date(a.attendanceDate);
             const isToday = aDate.getFullYear() === y && aDate.getMonth() === m && aDate.getDate() === d;
             const isYesterday = aDate.getFullYear() === yy && aDate.getMonth() === ym && aDate.getDate() === yd;
-            const isIncompleteRecent = !a.timeOut && a.status !== 'Ditolak' && (now.getTime() - aDate.getTime()) <= 36 * 60 * 60 * 1000;
+            const isIncompleteRecent = !a.timeOut && a.status !== 'Ditolak';
             return isToday || isYesterday || isIncompleteRecent;
           });
           setTeamAttendances(activeTeam);
@@ -888,7 +885,7 @@ export default function EmployeePortal() {
         width: 800,
         allowEditing: false,
         resultType: CameraResultType.DataUrl,
-        source: CameraSource.Camera, Download,
+        source: CameraSource.Camera,
         direction: 'REAR' as any
       });
       if (image.dataUrl) {
@@ -1013,6 +1010,7 @@ export default function EmployeePortal() {
         } else {
           setTeamAttendances(prev => prev.map(a => a.id === optimisticAtt.id ? { ...a, id: result.id } : a));
         }
+        fetchEmployeeResources(true); // REFRESH DATA
       }).catch(err => {
         console.error(err);
         triggerToast('Koneksi terputus. Harap muat ulang untuk memastikan sinkronisasi.');
@@ -1126,6 +1124,7 @@ export default function EmployeePortal() {
               setTeamAttendances(prev => prev.map(a => a.employeeId === targetEmployeeId && a.id.startsWith('temp-') ? { ...a, id: result.id } : a));
             }
           }
+          fetchEmployeeResources(true); // REFRESH DATA
         } catch (err) {
           console.error(err);
           triggerToast('Sinkronisasi latar belakang gagal. Akan dicoba lagi.');
@@ -1343,7 +1342,13 @@ export default function EmployeePortal() {
 
     return {
       isRestState: !hasActiveClockIn && (hasApprovedLeave || isTodayOffDay),
-      hasClockedOut: todayAttendance?.timeOut !== null && todayAttendance?.timeOut !== undefined,
+      hasClockedOut: (() => {
+        if (!todayAttendance || !todayAttendance.timeOut) return false;
+        const attDateStr = typeof todayAttendance.attendanceDate === 'string' 
+            ? todayAttendance.attendanceDate.split('T')[0] 
+            : new Date(todayAttendance.attendanceDate).toISOString().split('T')[0];
+        return attDateStr === todayStr;
+      })(),
       isApprovedLeave: hasApprovedLeave,
       hasActiveClockIn
     };
@@ -1542,45 +1547,23 @@ export default function EmployeePortal() {
   const isOvertimeApproved = !!getApprovedOvertimeForToday();
 
   const getMemberTodayAttendance = (memberId: string) => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
-    const d = now.getDate();
+    const memberAtts = teamAttendances.filter(a => a.employeeId === memberId);
     
-    // First, check if there is an attendance recorded today
-    const todayAtt = teamAttendances.find(a => {
-      if (a.employeeId !== memberId) return false;
-      const aDate = new Date(a.attendanceDate);
-      return aDate.getFullYear() === y && aDate.getMonth() === m && aDate.getDate() === d;
-    });
-
-    if (todayAtt) return todayAtt;
-
-    // If no attendance today, check if member has an uncompleted attendance from yesterday or recent (night shift)
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yy = yesterday.getFullYear();
-    const ym = yesterday.getMonth();
-    const yd = yesterday.getDate();
-    
-    const yesterdayAtt = teamAttendances.find(a => {
-      if (a.employeeId !== memberId) return false;
-      const aDate = new Date(a.attendanceDate);
-      return aDate.getFullYear() === yy && aDate.getMonth() === ym && aDate.getDate() === yd;
-    });
-
-    if (yesterdayAtt && !yesterdayAtt.timeOut && yesterdayAtt.status !== 'Ditolak') {
-      return yesterdayAtt;
+    // Find latest incomplete
+    const incomplete = memberAtts
+      .filter(a => a.timeIn && !a.timeOut && a.status !== 'Ditolak')
+      .sort((a, b) => new Date(b.attendanceDate).getTime() - new Date(a.attendanceDate).getTime())[0];
+      
+    if (incomplete) {
+       return incomplete;
     }
 
-    // Also look for any incomplete attendance in the last 36 hours
-    const recentIncomplete = teamAttendances.find(a => {
-      if (a.employeeId !== memberId || a.timeOut || a.status === 'Ditolak') return false;
-      const diffHours = (now.getTime() - new Date(a.attendanceDate).getTime()) / (1000 * 60 * 60);
-      return diffHours >= 0 && diffHours <= 36;
-    });
-
-    return recentIncomplete || undefined;
+    // Otherwise, today's attendance
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    return memberAtts.find(a => {
+      const aDateStr = typeof a.attendanceDate === 'string' ? a.attendanceDate.split('T')[0] : new Date(a.attendanceDate).toISOString().split('T')[0];
+      return aDateStr === todayStr;
+    }) || undefined;
   };
 
   const handleOpenAttendanceModal = (type: 'masuk' | 'pulang' | 'lembur_masuk' | 'lembur_pulang') => {

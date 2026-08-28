@@ -1091,7 +1091,11 @@ export default function CMS() {
             className="bg-white/40 rounded-2xl border border-slate-200 flex flex-col overflow-hidden text-slate-800 p-6"
           >
             <h3 className="font-extrabold text-slate-900 text-md">Update Aplikasi Mobile (APK)</h3>
-            <p className="text-xs text-slate-600 mt-1 mb-6">Unggah versi terbaru dari aplikasi Android (.apk) agar pegawai dapat mengunduhnya langsung dari dalam aplikasi tanpa melalui web.</p>
+            <p className="text-xs text-slate-600 mt-1 mb-2">Unggah versi terbaru dari aplikasi Android (.apk) agar pegawai dapat mengunduhnya langsung dari dalam aplikasi tanpa melalui web.</p>
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+               <h4 className="text-xs font-bold text-blue-900 mb-1">🍎 Info untuk Pengguna iOS (iPhone/iPad):</h4>
+               <p className="text-[11px] text-blue-800">Untuk perangkat Apple, bagikan link portal ini ke pegawai. Minta mereka membukanya di <b>Safari</b>, lalu tekan <b>Share &gt; Add to Home Screen</b>. Aplikasi akan otomatis selalu menggunakan versi web terbaru (PWA) tanpa perlu update APK.</p>
+            </div>
             
             <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 w-full max-w-2xl space-y-4">
               <div>

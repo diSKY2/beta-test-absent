@@ -1,0 +1,17 @@
+{
+  "name": "Portal Garuda Trisula Perkasa",
+  "short_name": "Garuda Portal",
+  "description": "Enterprise Portal PT. Garuda Trisula Perkasa",
+  "start_url": "/pegawai",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1e40af",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
