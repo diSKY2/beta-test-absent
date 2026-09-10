@@ -8,10 +8,33 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const apiRouter = express.Router();
 
+// In-memory cache helper for high-frequency reference data (prevents database connection pool exhaustion)
+const memoryCache: Record<string, { data: any; expiry: number }> = {};
+function getCachedData<T>(key: string): T | null {
+  const item = memoryCache[key];
+  if (item && item.expiry > Date.now()) {
+    return item.data as T;
+  }
+  return null;
+}
+function setCachedData(key: string, data: any, ttlSeconds: number = 45) {
+  memoryCache[key] = { data, expiry: Date.now() + ttlSeconds * 1000 };
+}
+function clearCache(prefix?: string) {
+  if (!prefix) {
+    Object.keys(memoryCache).forEach(k => delete memoryCache[k]);
+  } else {
+    Object.keys(memoryCache).filter(k => k.startsWith(prefix)).forEach(k => delete memoryCache[k]);
+  }
+}
+
 // Employees API
 apiRouter.get('/employees', async (req, res) => {
   try {
+    let cached = getCachedData<any[]>('ref_employees');
+    if (cached) return res.json(cached);
     const data = await db.select().from(employees);
+    setCachedData('ref_employees', data, 30);
     res.json(data);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -20,6 +43,7 @@ apiRouter.post('/employees', async (req, res) => {
   try {
     const newEmployee = { ...req.body, id: uuidv4() };
     await db.insert(employees).values(newEmployee);
+    clearCache('ref_employees');
     res.json({ id: newEmployee.id });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -28,6 +52,7 @@ apiRouter.put('/employees/:id', async (req, res) => {
   try {
     const { id } = req.params;
     await db.update(employees).set(req.body).where(eq(employees.id, id));
+    clearCache('ref_employees');
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -36,6 +61,7 @@ apiRouter.delete('/employees/:id', async (req, res) => {
   try {
     const { id } = req.params;
     await db.delete(employees).where(eq(employees.id, id));
+    clearCache('ref_employees');
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -270,7 +296,11 @@ apiRouter.post('/employee/dashboard-data', async (req, res) => {
     queries.push(db.select().from(workReports).where(eq(workReports.employeeId, employeeId)));
     
     if (isLeader) {
-       queries.push(db.select().from(attendances)); // team attendances
+       // Only fetch recent team attendances (last 3 days) to avoid scanning the entire database history
+       const threeDaysAgo = new Date();
+       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+       threeDaysAgo.setHours(0, 0, 0, 0);
+       queries.push(db.select().from(attendances).where(gte(attendances.attendanceDate, threeDaysAgo)));
     } else {
        queries.push(Promise.resolve([]));
     }
@@ -343,11 +373,27 @@ apiRouter.post('/admin/monitoring-data', async (req, res) => {
     fromDate.setHours(fromDate.getHours() - 14);
     toDate.setHours(toDate.getHours() + 14);
 
+    // Fetch or use cached reference data to avoid redundant heavy queries
+    let cachedLocations = getCachedData<any[]>('ref_locations');
+    let cachedDepartments = getCachedData<any[]>('ref_departments');
+    let cachedSubDepartments = getCachedData<any[]>('ref_subdepartments');
+    let cachedEmployees = getCachedData<any[]>('ref_employees');
+
+    const refPromises: Promise<any>[] = [];
+    if (!cachedLocations) refPromises.push(db.select().from(locations).then(d => { setCachedData('ref_locations', d, 60); return d; }));
+    else refPromises.push(Promise.resolve(cachedLocations));
+
+    if (!cachedDepartments) refPromises.push(db.select().from(departments).then(d => { setCachedData('ref_departments', d, 60); return d; }));
+    else refPromises.push(Promise.resolve(cachedDepartments));
+
+    if (!cachedSubDepartments) refPromises.push(db.select().from(subDepartments).then(d => { setCachedData('ref_subdepartments', d, 60); return d; }));
+    else refPromises.push(Promise.resolve(cachedSubDepartments));
+
+    if (!cachedEmployees) refPromises.push(db.select().from(employees).then(d => { setCachedData('ref_employees', d, 30); return d; }));
+    else refPromises.push(Promise.resolve(cachedEmployees));
+
     const queries = [
-      db.select().from(locations),
-      db.select().from(departments),
-      db.select().from(subDepartments),
-      db.select().from(employees),
+      ...refPromises,
       db.select().from(attendances).where(
         and(
           gte(attendances.attendanceDate, fromDate),

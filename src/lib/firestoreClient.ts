@@ -173,21 +173,48 @@ export async function deleteDoc(docObj: any) {
 
 export function onSnapshot(queryObj: any, onNext: (snap: any) => void, onError?: (err: any) => void) {
   let isCancelled = false;
-  
+  let timerId: any = null;
+
   const fetchCycle = () => {
     if (isCancelled) return;
+    
+    // If tab is in background (hidden), don't spam the server. Check again in 60s
+    if (typeof document !== 'undefined' && document.hidden) {
+      timerId = setTimeout(fetchCycle, 60000);
+      return;
+    }
+
     getDocs(queryObj).then(snap => {
       if (!isCancelled) onNext(snap);
-      setTimeout(fetchCycle, 30000);
+      if (!isCancelled) timerId = setTimeout(fetchCycle, 45000);
     }).catch(err => {
       if (onError && !isCancelled) onError(err);
-      setTimeout(fetchCycle, 30000);
+      if (!isCancelled) timerId = setTimeout(fetchCycle, 45000);
     });
   };
-  
+
+  // Immediate fetch on mount
   fetchCycle();
-  
-  return () => { isCancelled = true; };
+
+  // If user switches back to tab, fetch immediately
+  const handleVisibilityChange = () => {
+    if (typeof document !== 'undefined' && !document.hidden && !isCancelled) {
+      if (timerId) clearTimeout(timerId);
+      fetchCycle();
+    }
+  };
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+  }
+
+  return () => {
+    isCancelled = true;
+    if (timerId) clearTimeout(timerId);
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+  };
 }
 
 export async function getDoc(docRef: any) {

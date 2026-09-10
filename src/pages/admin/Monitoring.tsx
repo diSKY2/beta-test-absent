@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { db } from '../../lib/firestoreClient';
 import { collection, query, where, getDocs, onSnapshot } from '../../lib/firestoreClient';
 import { PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
-import { Download, Search, MapPin, ChevronDown, ChevronRight, Bell, ArrowRight, Layers, Building, Users } from 'lucide-react';
+import { Download, Search, MapPin, ChevronDown, ChevronRight, Bell, ArrowRight, Layers, Building, Users, RefreshCw } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../../lib/utils';
 import { deleteDoc, doc } from '../../lib/firestoreClient';
 import { auth } from '../../lib/firestoreClient';
@@ -24,6 +24,9 @@ export default function Monitoring() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [attendances, setAttendances] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedTime, setLastRefreshedTime] = useState<string>('');
+  const isFetchingRef = useRef(false);
 
   const [departments, setDepartments] = useState<any[]>([]);
   const [subDepartments, setSubDepartments] = useState<any[]>([]);
@@ -58,63 +61,95 @@ export default function Monitoring() {
     setExpandedSubDepts(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const fetchMonitoringData = useCallback(async (isManual = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    if (isManual) setIsRefreshing(true);
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+      const res = await fetch(baseUrl + '/api/admin/monitoring-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dateFrom,
+          dateTo: dateTo >= dateFrom ? dateTo : dateFrom
+        })
+      });
+
+      if (!res.ok) throw new Error('Gagal memuat data monitoring');
+      
+      const data = await res.json();
+      
+      setLocations(data.locations || []);
+      setDepartments(data.departments || []);
+      setSubDepartments(data.subDepartments || []);
+      
+      const empList = data.employees || [];
+      const map: Record<string, any> = {};
+      empList.forEach((e: any) => { map[e.id] = e; });
+      setEmployees(empList);
+      setEmployeesMap(map);
+
+      const attList = (data.attendances || []).map((a: any) => {
+        let formattedDate = a.date;
+        if (!formattedDate && a.attendanceDate) {
+          formattedDate = typeof a.attendanceDate === 'string' ? a.attendanceDate.split('T')[0] : format(new Date(a.attendanceDate), 'yyyy-MM-dd');
+        }
+        return { ...a, date: formattedDate };
+      });
+      setAttendances(attList);
+      
+      const schedList = (data.schedules || []).map((s: any) => {
+        return { ...s, dateFormatted: s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : format(new Date(s.date), 'yyyy-MM-dd')) : null };
+      });
+      setSchedules(schedList);
+      setLastRefreshedTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      if (isManual) toast.info('Data monitoring berhasil diperbarui');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      isFetchingRef.current = false;
+      setIsRefreshing(false);
+    }
+  }, [dateFrom, dateTo]);
+
   useEffect(() => {
     let isCancelled = false;
+    let timerId: any = null;
 
-    const fetchMonitoringData = async () => {
-      try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-        const res = await fetch(baseUrl + '/api/admin/monitoring-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            dateFrom,
-            dateTo: dateTo >= dateFrom ? dateTo : dateFrom
-          })
-        });
+    // Fetch initial
+    fetchMonitoringData();
 
-        if (!res.ok) throw new Error('Gagal memuat data monitoring');
-        
-        const data = await res.json();
-        
-        if (!isCancelled) {
-          setLocations(data.locations || []);
-          setDepartments(data.departments || []);
-          setSubDepartments(data.subDepartments || []);
-          
-          const empList = data.employees || [];
-          const map: Record<string, any> = {};
-          empList.forEach((e: any) => { map[e.id] = e; });
-          setEmployees(empList);
-          setEmployeesMap(map);
+    // Smart 60-second polling that halts when tab is in background
+    const cycle = () => {
+      if (isCancelled) return;
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchMonitoringData();
+      }
+      timerId = setTimeout(cycle, 60000);
+    };
 
-          const attList = (data.attendances || []).map((a: any) => {
-            let formattedDate = a.date;
-            if (!formattedDate && a.attendanceDate) {
-              formattedDate = typeof a.attendanceDate === 'string' ? a.attendanceDate.split('T')[0] : format(new Date(a.attendanceDate), 'yyyy-MM-dd');
-            }
-            return { ...a, date: formattedDate };
-          });
-          setAttendances(attList);
-          
-          const schedList = (data.schedules || []).map((s: any) => {
-            return { ...s, dateFormatted: s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : format(new Date(s.date), 'yyyy-MM-dd')) : null };
-          });
-          setSchedules(schedList);
-        }
-      } catch (err) {
-        console.error(err);
+    timerId = setTimeout(cycle, 60000);
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && !document.hidden && !isCancelled) {
+        fetchMonitoringData();
       }
     };
 
-    fetchMonitoringData();
-    const interval = setInterval(fetchMonitoringData, 10000); // Poll every 10 seconds
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
 
     return () => {
       isCancelled = true;
-      clearInterval(interval);
+      if (timerId) clearTimeout(timerId);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
     };
-  }, [dateFrom, dateTo]);
+  }, [fetchMonitoringData]);
 
   const getDaysArray = (startStr: string, endStr: string) => {
     const dates: string[] = [];
@@ -367,10 +402,21 @@ export default function Monitoring() {
           <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Dashboard & Log Hari Ini</h2>
         </div>
         
-        <div className="flex items-center gap-2 text-xs font-mono text-slate-600">
-           <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" />
-           <span className="tracking-wider">Date Frame:</span> 
-           <span className="text-slate-900">{format(new Date(dateFrom), 'MMMM yyyy')} (Live Track)</span>
+        <div className="flex items-center gap-3 text-xs font-mono text-slate-600">
+           <button
+             onClick={() => fetchMonitoringData(true)}
+             disabled={isRefreshing}
+             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 active:scale-95 transition text-xs font-semibold shadow-sm disabled:opacity-50"
+             title="Muat ulang data monitoring terbaru"
+           >
+             <RefreshCw className={`w-3.5 h-3.5 text-blue-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+             <span>{isRefreshing ? 'Memuat...' : 'Refresh Data'}</span>
+           </button>
+           <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg">
+             <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" />
+             <span className="text-slate-500">Update:</span> 
+             <span className="text-slate-900 font-bold">{lastRefreshedTime || 'Baru saja'}</span>
+           </div>
         </div>
       </div>
 
