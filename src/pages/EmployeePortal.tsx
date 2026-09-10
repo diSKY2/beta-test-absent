@@ -11,6 +11,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import {
+  getJakartaDate,
+  getJakartaDateString,
+  getJakartaTimeString,
+  getJakartaFormattedDate,
+  getJakartaHours,
+  getJakartaMinutes
+} from '../lib/timezone';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -650,21 +658,20 @@ export default function EmployeePortal() {
            const schRes = responses[1];
            if (schRes.ok) {
               const computedSchedules = await schRes.json();
-              const yesterday = new Date();
-              yesterday.setDate(yesterday.getDate() - 1);
-              yesterday.setHours(0,0,0,0);
-              const nextWeek = new Date();
-              nextWeek.setDate(nextWeek.getDate() + 7);
+              const jakartaTodayStr = getJakartaDateString();
+              const [tY, tM, tD] = jakartaTodayStr.split('-').map(Number);
+              const yesterdayStr = getJakartaDateString(new Date(Date.UTC(tY, tM - 1, tD - 1)));
+              const nextWeekStr = getJakartaDateString(new Date(Date.UTC(tY, tM - 1, tD + 7)));
               
               const dashboardSchedules = computedSchedules.filter((s: any) => {
-                 const sDate = new Date(s.date);
-                 return sDate >= yesterday && sDate < nextWeek;
+                 const sDateStr = s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : getJakartaDateString(s.date)) : '';
+                 return sDateStr >= yesterdayStr && sDateStr <= nextWeekStr;
               });
               setSchedulesList(dashboardSchedules);
               
               const futureSchedules = computedSchedules.filter((s: any) => {
-                 const sDate = new Date(s.date);
-                 return sDate >= yesterday && !s.isOffDay;
+                 const sDateStr = s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : getJakartaDateString(s.date)) : '';
+                 return sDateStr >= yesterdayStr && !s.isOffDay;
               });
               setMyFutureSchedules(futureSchedules);
            }
@@ -676,15 +683,13 @@ export default function EmployeePortal() {
         const attData = data.attendances;
         setAttendancesHistory(attData);
         
-        // Find today's date formatted using fully timezone-safe local year, month, and day matching
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = now.getMonth();
-        const d = now.getDate();
-        // 3. Resolve active/today attendance
-        const todayStr = format(now, 'yyyy-MM-dd');
+        // 3. Resolve active/today attendance using Asia/Jakarta (WIB)
+        const todayStr = getJakartaDateString();
         const schedData = data.schedules || [];
-        const todaySchedule = schedData.find((sch: any) => sch.date === todayStr);
+        const todaySchedule = schedData.find((sch: any) => {
+          const sDateStr = sch.date ? (typeof sch.date === 'string' ? sch.date.split('T')[0] : getJakartaDateString(sch.date)) : '';
+          return sDateStr === todayStr;
+        });
         const isTodayOffDay = todaySchedule?.isOffDay === true;
 
         const latestIncomplete = attData
@@ -694,8 +699,10 @@ export default function EmployeePortal() {
         let targetAtt = null;
 
         if (latestIncomplete) {
-          const aDate = new Date(latestIncomplete.attendanceDate);
-          const diffCalendarDays = Math.floor((new Date(todayStr).getTime() - new Date(format(aDate, 'yyyy-MM-dd')).getTime()) / (1000 * 3600 * 24));
+          const aDateStr = getJakartaDateString(latestIncomplete.attendanceDate);
+          const [curY, curM, curD] = todayStr.split('-').map(Number);
+          const [attY, attM, attD] = aDateStr.split('-').map(Number);
+          const diffCalendarDays = Math.floor((Date.UTC(curY, curM - 1, curD) - Date.UTC(attY, attM - 1, attD)) / (1000 * 3600 * 24));
           
           if (isTodayOffDay && diffCalendarDays >= 2) {
              // Drop it, it's the second day of holiday
@@ -707,7 +714,7 @@ export default function EmployeePortal() {
 
         if (!targetAtt) {
            targetAtt = attData.find((a: any) => {
-              const aDateStr = typeof a.attendanceDate === 'string' ? a.attendanceDate.split('T')[0] : new Date(a.attendanceDate).toISOString().split('T')[0];
+              const aDateStr = getJakartaDateString(a.attendanceDate);
               return aDateStr === todayStr;
            });
         }
@@ -903,8 +910,11 @@ export default function EmployeePortal() {
     if (!currentEmployee) return;
     
     // Check WFA status
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const todaySchedule = schedulesList.find(sch => sch.date.startsWith(todayStr) || sch.date === todayStr);
+    const todayStr = getJakartaDateString(currentTime);
+    const todaySchedule = schedulesList.find(sch => {
+      const sDateStr = sch.date ? (typeof sch.date === 'string' ? sch.date.split('T')[0] : getJakartaDateString(sch.date)) : '';
+      return sDateStr === todayStr;
+    });
     const isWfa = todaySchedule?.isWfa === true;
     
     // Geofencing limit validation (bypass if WFA)
@@ -942,16 +952,16 @@ export default function EmployeePortal() {
     }
 
     
-    const currentTimeStr = currentTime.toTimeString().split(' ')[0].substring(0, 5); // "HH:MM"
+    const currentTimeStr = getJakartaTimeString(currentTime); // "HH:MM" (WIB)
 
     // Calculate isLate automatically
     let calculatedIsLate = false;
     const schDetails = getTodayScheduleDetails();
     if (!todaySchedule?.isFlexible && schDetails && schDetails.shiftStart) {
       const [startH, startM] = schDetails.shiftStart.split(':').map(Number);
-      const shiftStartObj = new Date();
-      shiftStartObj.setHours(startH, startM, 0, 0);
-      calculatedIsLate = currentTime.getTime() > shiftStartObj.getTime();
+      const startMinutes = (isNaN(startH) ? 8 : startH) * 60 + (isNaN(startM) ? 0 : startM);
+      const currentMinutes = getJakartaHours(currentTime) * 60 + getJakartaMinutes(currentTime);
+      calculatedIsLate = currentMinutes > startMinutes;
     }
 
     if (attendanceModalType === 'masuk') {
@@ -1072,7 +1082,7 @@ export default function EmployeePortal() {
               if (incomplete) {
                 targetAttId = incomplete.id;
               } else {
-                let memberToday = history.find((a: any) => new Date(a.attendanceDate).toISOString().split('T')[0] === todayStr);
+                let memberToday = history.find((a: any) => getJakartaDateString(a.attendanceDate) === todayStr);
                 targetAttId = memberToday?.id;
               }
             }
@@ -1322,19 +1332,20 @@ export default function EmployeePortal() {
 
   // Check if today is leave/sick or rest day
   const getTodayStatusInfo = () => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const todayStr = getJakartaDateString(currentTime);
     
     // Check if approved leave request is active today
     const hasApprovedLeave = leaveRequestsHistory.some(req => {
       if (req.status !== 'Approved') return false;
-      const reqDateStr = typeof req.requestDate === 'string' 
-          ? req.requestDate.split('T')[0] 
-          : new Date(req.requestDate).toISOString().split('T')[0];
+      const reqDateStr = getJakartaDateString(req.requestDate);
       return reqDateStr === todayStr;
     });
 
     // Check today's schedule off-day
-    const todaySchedule = schedulesList.find(sch => sch.date === todayStr);
+    const todaySchedule = schedulesList.find(sch => {
+      const sDateStr = sch.date ? (typeof sch.date === 'string' ? sch.date.split('T')[0] : getJakartaDateString(sch.date)) : '';
+      return sDateStr === todayStr;
+    });
     const isTodayOffDay = todaySchedule?.isOffDay === true;
 
     // If employee is actively clocked in without clock-out, they are currently on duty (e.g. night shift cross-day)
@@ -1344,9 +1355,7 @@ export default function EmployeePortal() {
       isRestState: !hasActiveClockIn && (hasApprovedLeave || isTodayOffDay),
       hasClockedOut: (() => {
         if (!todayAttendance || !todayAttendance.timeOut) return false;
-        const attDateStr = typeof todayAttendance.attendanceDate === 'string' 
-            ? todayAttendance.attendanceDate.split('T')[0] 
-            : new Date(todayAttendance.attendanceDate).toISOString().split('T')[0];
+        const attDateStr = getJakartaDateString(todayAttendance.attendanceDate);
         return attDateStr === todayStr;
       })(),
       isApprovedLeave: hasApprovedLeave,
@@ -1354,9 +1363,9 @@ export default function EmployeePortal() {
     };
   };
 
-  // Dynamic time of day greetings with revised status messages
+  // Dynamic time of day greetings with revised status messages (GMT+7 Jakarta)
   const getGreeting = () => {
-    const hours = currentTime.getHours();
+    const hours = getJakartaHours(currentTime);
     const statusInfo = getTodayStatusInfo();
 
     // 1. If leave, sick or off day:
@@ -1387,20 +1396,17 @@ export default function EmployeePortal() {
     }
   };
 
-  // Attendance timing validation helpers
+  // Attendance timing validation helpers (GMT+7 Jakarta)
   const getActiveScheduleDetails = () => {
-    const now = new Date();
+    const todayStr = getJakartaDateString(currentTime);
     
     // If employee is actively clocked in and hasn't clocked out (e.g. night shift cross-day)
     if (todayAttendance && !todayAttendance.timeOut && todayAttendance.status !== 'Ditolak') {
-      const attDate = new Date(todayAttendance.attendanceDate);
-      const ay = attDate.getFullYear();
-      const am = attDate.getMonth();
-      const ad = attDate.getDate();
+      const attDateStr = getJakartaDateString(todayAttendance.attendanceDate);
       
       const attSch = schedulesList.find(s => {
-        const sDate = new Date(s.date);
-        return sDate.getFullYear() === ay && sDate.getMonth() === am && sDate.getDate() === ad;
+        const sDateStr = s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : getJakartaDateString(s.date)) : '';
+        return sDateStr === attDateStr;
       });
       
       if (attSch) {
@@ -1427,13 +1433,9 @@ export default function EmployeePortal() {
     }
 
     // Default: Today's schedule from roster
-    const y = now.getFullYear();
-    const m = now.getMonth();
-    const d = now.getDate();
-    
     const sch = schedulesList.find(s => {
-      const sDate = new Date(s.date);
-      return sDate.getFullYear() === y && sDate.getMonth() === m && sDate.getDate() === d;
+      const sDateStr = s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : getJakartaDateString(s.date)) : '';
+      return sDateStr === todayStr;
     });
     
     return {
@@ -1454,36 +1456,39 @@ export default function EmployeePortal() {
     }
 
     if (sch.isFlexible) { return { isEnabled: true, reason: "" }; }
-    const [startH, startM] = sch.shiftStart.split(':').map(Number);
+    const [startH, startM] = (sch.shiftStart || "08:00").split(':').map(Number);
     if (isNaN(startH)) return { isEnabled: false, reason: "Format jadwal salah atau sedang libur." };
-    const startObj = new Date(currentTime.getTime());
-    startObj.setHours(startH, startM, 0, 0);
 
-    const [endH, endM] = sch.shiftEnd.split(':').map(Number);
-    const endObj = new Date(currentTime.getTime());
-    endObj.setHours(endH, endM, 0, 0);
+    const [endH, endM] = (sch.shiftEnd || "16:00").split(':').map(Number);
+    const startMinutes = startH * 60 + (isNaN(startM) ? 0 : startM);
+    const endMinutes = (!isNaN(endH) ? endH : 16) * 60 + (isNaN(endM) ? endM : 0);
+    const currentMinutes = getJakartaHours(currentTime) * 60 + getJakartaMinutes(currentTime);
 
-    if (endObj.getTime() <= startObj.getTime()) {
-       if (currentTime.getHours() < endH || (currentTime.getHours() === endH && currentTime.getMinutes() <= endM)) {
-         startObj.setDate(startObj.getDate() - 1);
-       } else {
-         endObj.setDate(endObj.getDate() + 1);
-       }
-    }
+    const isCrossMidnight = endMinutes <= startMinutes;
 
-    if (currentTime.getTime() >= endObj.getTime()) {
-      return { 
-        isEnabled: false, 
-        reason: `Shift telah berakhir (${sch.shiftEnd}). Anda dihitung mangkir karena tidak absen masuk.` 
-      };
-    }
-
-    const timeDiffMinutes = (startObj.getTime() - currentTime.getTime()) / (60 * 1000);
-    if (timeDiffMinutes > 10) {
-      return { 
-        isEnabled: false, 
-        reason: `Tombol hanya aktif mulai 10 menit sebelum jam masuk shift (${sch.shiftStart}).` 
-      };
+    if (!isCrossMidnight) {
+      // Regular daytime shift (e.g., 08:00 to 16:00)
+      // Allow clock-in starting 120 minutes (2 hours) before shiftStart
+      if (currentMinutes < startMinutes - 120) {
+        return { 
+          isEnabled: false, 
+          reason: `Tombol aktif mulai 2 jam sebelum jam masuk (${sch.shiftStart} WIB).` 
+        };
+      }
+      if (currentMinutes >= endMinutes) {
+        return { 
+          isEnabled: false, 
+          reason: `Shift telah berakhir (${sch.shiftEnd} WIB). Anda tercatat mangkir karena tidak absen masuk.` 
+        };
+      }
+    } else {
+      // Cross-midnight shift (e.g., 20:00 to 08:00 or 23:00 to 07:00)
+      if (currentMinutes >= endMinutes && currentMinutes < startMinutes - 120) {
+        return { 
+          isEnabled: false, 
+          reason: `Tombol aktif mulai 2 jam sebelum jam masuk (${sch.shiftStart} WIB).` 
+        };
+      }
     }
 
     return { isEnabled: true, reason: "" };
@@ -1493,33 +1498,37 @@ export default function EmployeePortal() {
     // If the employee is actively clocked in:
     if (todayAttendance && !todayAttendance.timeOut && todayAttendance.status !== 'Ditolak') {
       const sch = getActiveScheduleDetails();
-      const [endH, endM] = sch.shiftEnd.split(':').map(Number);
+      if (sch.isFlexible) { return { isEnabled: true, reason: "" }; }
       
+      const [endH, endM] = (sch.shiftEnd || "16:00").split(':').map(Number);
       if (!isNaN(endH)) {
-        // Calculate shift end datetime relative to attendance clock-in date
-        const attDate = new Date(todayAttendance.attendanceDate);
-        if (sch.isFlexible) { return { isEnabled: true, reason: "" }; }
-        const [startH, startM] = sch.shiftStart.split(':').map(Number);
-        
-        const startObj = new Date(attDate.getTime());
-        startObj.setHours(isNaN(startH) ? 0 : startH, isNaN(startM) ? 0 : startM, 0, 0);
+        const [startH, startM] = (sch.shiftStart || "08:00").split(':').map(Number);
+        const startMinutes = (isNaN(startH) ? 0 : startH) * 60 + (isNaN(startM) ? 0 : startM);
+        const endMinutes = endH * 60 + (isNaN(endM) ? 0 : endM);
+        const currentMinutes = getJakartaHours(currentTime) * 60 + getJakartaMinutes(currentTime);
+        const isCrossMidnight = endMinutes <= startMinutes;
 
-        const endObj = new Date(attDate.getTime());
-        endObj.setHours(endH, isNaN(endM) ? 0 : endM, 0, 0);
+        // Allow clocking out up to 30 minutes before official shiftEnd or anytime after
+        const allowableEarlyMinutes = 30;
 
-        // If shift crosses midnight into next day (end <= start)
-        if (endObj.getTime() <= startObj.getTime()) {
-          endObj.setDate(endObj.getDate() + 1);
-        }
-
-        // Allow clocking out up to 15 minutes before official shiftEnd (e.g. 06:45 for 07:00 shiftEnd) or anytime after
-        const allowableClockOutTime = new Date(endObj.getTime() - 15 * 60 * 1000);
-        
-        if (currentTime.getTime() < allowableClockOutTime.getTime()) {
-          return { 
-            isEnabled: false, 
-            reason: `Tombol hanya aktif menjelang/setelah waktu pulang (${sch.shiftEnd}).` 
-          };
+        if (!isCrossMidnight) {
+          if (currentMinutes < endMinutes - allowableEarlyMinutes && currentMinutes >= startMinutes) {
+            return { 
+              isEnabled: false, 
+              reason: `Tombol absen pulang aktif menjelang (${sch.shiftEnd} WIB).` 
+            };
+          }
+        } else {
+          // Cross midnight (e.g. 23:00 to 07:00)
+          // If still in the evening of start (e.g. 23:30), clock out not yet ready until next morning (06:30)
+          if (currentMinutes >= startMinutes || currentMinutes < endMinutes - allowableEarlyMinutes) {
+            if (currentMinutes >= startMinutes) {
+              return {
+                isEnabled: false,
+                reason: `Shift dinas malam berakhir pada ${sch.shiftEnd} WIB.`
+              };
+            }
+          }
         }
 
         return { isEnabled: true, reason: "" };
@@ -1532,15 +1541,12 @@ export default function EmployeePortal() {
     return { isEnabled: false, reason: "Anda belum melakukan absen masuk." };
   };
 
-  // Overtime validation
+  // Overtime validation (GMT+7 Jakarta)
   const getApprovedOvertimeForToday = () => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
-    const d = now.getDate();
+    const todayStr = getJakartaDateString(currentTime);
     return overtimeRequestsHistory.find(req => {
-      const reqDate = new Date(req.requestDate);
-      return reqDate.getFullYear() === y && reqDate.getMonth() === m && reqDate.getDate() === d && req.status === 'Approved';
+      const reqDateStr = getJakartaDateString(req.requestDate);
+      return reqDateStr === todayStr && req.status === 'Approved';
     });
   };
 
@@ -1896,17 +1902,17 @@ export default function EmployeePortal() {
                       <p className="text-[11px] text-slate-600 font-black italic leading-tight">{greetingObj.sub}</p>
                     </div>
 
-                    {/* Interactive digital clock */}
+                    {/* Interactive digital clock (Locked to GMT+7 Jakarta WIB) */}
                     <div className="mt-4 py-2.5 bg-white rounded-2xl shadow-inner border border-slate-100 flex items-center justify-center gap-1.5">
                       <Clock className="w-4 h-4 text-red-600 animate-pulse" />
                       <h2 className="text-2xl font-black text-[#0C2461] tracking-tight font-mono">
-                        {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        {getJakartaTimeString(currentTime, true)}
                         <span className="text-xs font-semibold text-slate-400 ml-1">WIB</span>
                       </h2>
                     </div>
 
                     <p className="text-[9px] text-slate-400 font-black tracking-widest uppercase font-mono mt-2">
-                      {currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                      {getJakartaFormattedDate(currentTime)}
                     </p>
 
 
@@ -2506,7 +2512,7 @@ export default function EmployeePortal() {
                           >
                             <div className="space-y-1.5">
                               <span className="text-[9px] font-mono text-[#14B8A6] font-extrabold uppercase tracking-widest">
-                                {new Date(sch.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                {getJakartaFormattedDate(sch.date)}
                               </span>
                               <strong className="text-sm text-slate-900 block tracking-tight font-black">
                                 {sch.isOffDay ? 'LIBUR MINGGUAN' : sch.shiftName || 'SHIFT DINAS'}

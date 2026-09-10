@@ -541,6 +541,19 @@ apiRouter.put('/shift-exchanges/:id/status', async (req, res) => {
 });
 
 
+const JAKARTA_TZ = 'Asia/Jakarta';
+
+function getJakartaDateStr(d: Date | string | number = new Date()): string {
+  const dateObj = typeof d === 'string' || typeof d === 'number' ? new Date(d) : d;
+  if (isNaN(dateObj.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: JAKARTA_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(dateObj);
+}
+
 apiRouter.get('/schedules/employee/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -567,8 +580,7 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
       let activeShift = null;
 
       const override = overrides.find(o => {
-        const oDate = new Date(o.overrideDate);
-        return oDate.toISOString().split('T')[0] === dateStr;
+        return getJakartaDateStr(o.overrideDate) === dateStr;
       });
 
       if (override) {
@@ -579,10 +591,12 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
         const sequence = Array.isArray(pattern.sequence) ? pattern.sequence : [];
         if (sequence.length > 0) {
           const cycleLength = sequence.length;
-          const refDate = new Date(pattern.startDate);
-          refDate.setHours(0,0,0,0);
-          const diffTime = targetDate.getTime() - refDate.getTime();
-          const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+          const refDateStr = getJakartaDateStr(pattern.startDate);
+          const [rY, rM, rD] = refDateStr.split('-').map(Number);
+          const [curY, curM, curD] = dateStr.split('-').map(Number);
+          const refTime = Date.UTC(rY, rM - 1, rD);
+          const curTime = Date.UTC(curY, curM - 1, curD);
+          const diffDays = Math.floor((curTime - refTime) / (1000 * 3600 * 24));
 
           if (diffDays >= 0) {
             const dayInCycle = diffDays % cycleLength;
@@ -633,24 +647,24 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
     };
     
     const computed = [];
-    const today = new Date();
-    today.setHours(0,0,0,0);
+    const jakartaTodayStr = getJakartaDateStr(new Date());
+    const [tY, tM, tD] = jakartaTodayStr.split('-').map(Number);
     
-    for (let i = 0; i < 30; i++) {
-      const targetDate = new Date(today);
-      targetDate.setDate(today.getDate() + i);
-      const dateStr = targetDate.toISOString().split('T')[0];
+    // Generate from yesterday (-1) to 35 days in Jakarta time
+    for (let i = -1; i < 35; i++) {
+      const targetDate = new Date(Date.UTC(tY, tM - 1, tD + i, 0, 0, 0));
+      const dateStr = `${targetDate.getUTCFullYear()}-${String(targetDate.getUTCMonth() + 1).padStart(2, '0')}-${String(targetDate.getUTCDate()).padStart(2, '0')}`;
       
       const isReplaced = exchanges.find(ex => {
-        const exDateR = new Date(ex.dateToReplace).toISOString().split('T')[0];
-        const exDateP = new Date(ex.dateToPayback).toISOString().split('T')[0];
+        const exDateR = getJakartaDateStr(ex.dateToReplace);
+        const exDateP = getJakartaDateStr(ex.dateToPayback);
         return (ex.requesterId === id && exDateR === dateStr) || (ex.replacerId === id && exDateP === dateStr);
       });
       
       if (isReplaced) {
         computed.push({
           id: 'ex-' + dateStr,
-          date: targetDate.toISOString(),
+          date: dateStr,
           shiftName: 'Tukar Libur',
           isOffDay: true
         });
@@ -658,13 +672,13 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
       }
       
       const isReplacing = exchanges.find(ex => {
-        const exDateR = new Date(ex.dateToReplace).toISOString().split('T')[0];
-        const exDateP = new Date(ex.dateToPayback).toISOString().split('T')[0];
+        const exDateR = getJakartaDateStr(ex.dateToReplace);
+        const exDateP = getJakartaDateStr(ex.dateToPayback);
         return (ex.requesterId === id && exDateP === dateStr) || (ex.replacerId === id && exDateR === dateStr);
       });
       
       if (isReplacing) {
-        const isPaybackDate = new Date(isReplacing.dateToPayback).toISOString().split('T')[0] === dateStr;
+        const isPaybackDate = getJakartaDateStr(isReplacing.dateToPayback) === dateStr;
         const personBeingReplacedId = (isReplacing.requesterId === id && isPaybackDate)
           ? isReplacing.replacerId
           : isReplacing.requesterId;
@@ -675,7 +689,7 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
         if (replacedShift && !replacedShift.isOffDay) {
           computed.push({
             id: 'ex-in-' + dateStr,
-            date: targetDate.toISOString(),
+            date: dateStr,
             shiftTypeId: replacedShift.id,
             shiftName: `Pengganti (${replacedShift.name})`,
             shiftStart: formatTimeStr(replacedShift.startTime),
@@ -687,7 +701,7 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
         } else {
           computed.push({
             id: 'ex-in-' + dateStr,
-            date: targetDate.toISOString(),
+            date: dateStr,
             shiftName: 'Shift Pengganti',
             shiftStart: '08:00',
             shiftEnd: '16:00',
@@ -698,27 +712,27 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
       }
 
       
-      const isLeave = leaves.find(l => new Date(l.requestDate).toISOString().split('T')[0] === dateStr);
+      const isLeave = leaves.find(l => getJakartaDateStr(l.requestDate) === dateStr);
       if (isLeave) {
         computed.push({
           id: 'leave-' + dateStr,
-          date: targetDate.toISOString(),
+          date: dateStr,
           shiftName: isLeave.type || 'Cuti/Izin',
           isOffDay: true
         });
         continue;
       }
       
-      const isOvertime = overtimes.find(o => new Date(o.requestDate).toISOString().split('T')[0] === dateStr);
+      const isOvertime = overtimes.find(o => getJakartaDateStr(o.requestDate) === dateStr);
       
       const activeShift = await getRawShiftForSubDept(emp.subDepartmentId, targetDate, dateStr);
       if (activeShift) {
         if (isOvertime && activeShift.isOffDay) {
           computed.push({
             id: 'ot-' + dateStr,
-            date: targetDate.toISOString(),
+            date: dateStr,
             shiftName: 'Lembur',
-            shiftStart: '08:00', // default, could be dynamic based on overtime duration but we just need them to clock in
+            shiftStart: '08:00',
             shiftEnd: '17:00',
             isOffDay: false
           });
@@ -727,7 +741,7 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
 
         computed.push({
           id: dateStr,
-          date: targetDate.toISOString(),
+          date: dateStr,
           shiftTypeId: activeShift.id,
           shiftName: activeShift.name,
           shiftStart: formatTimeStr(activeShift.startTime),
@@ -739,7 +753,7 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
       } else {
          computed.push({
            id: dateStr,
-           date: targetDate.toISOString(),
+           date: dateStr,
            shiftName: 'Libur',
            isOffDay: true
          });

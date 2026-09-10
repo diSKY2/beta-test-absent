@@ -9,13 +9,14 @@ import { handleFirestoreError, OperationType } from '../../lib/utils';
 import { deleteDoc, doc } from '../../lib/firestoreClient';
 import { auth } from '../../lib/firestoreClient';
 import { useToast } from '../../providers/ToastProvider';
+import { getJakartaDateString } from '../../lib/timezone';
 
 const COLORS = ['#14b8a6', '#f59e0b', '#ef4444']; // Hadir/Telat, Izin/Sakit, Alpa
 
 export default function Monitoring() {
   const toast = useToast();
-  const [dateFrom, setDateFrom] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [dateTo, setDateTo] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [dateFrom, setDateFrom] = useState(getJakartaDateString());
+  const [dateTo, setDateTo] = useState(getJakartaDateString());
   const [locations, setLocations] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
