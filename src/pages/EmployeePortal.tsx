@@ -135,7 +135,7 @@ export default function EmployeePortal() {
   
   // App Update State
   const [updateAvailable, setUpdateAvailable] = useState<{version: number, releaseNotes: string, downloadUrl?: string} | null>(null);
-  const APP_VERSION_CODE = 1; // Current hardcoded app version
+  const APP_VERSION_CODE = 2; // Current baseline app version
   
   // Attendance Pop-up state
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
@@ -321,8 +321,14 @@ export default function EmployeePortal() {
     fetch(API_BASE_URL + '/api/app-version')
       .then(res => res.json())
       .then(data => {
-        if (data && data.version > APP_VERSION_CODE) {
-          setUpdateAvailable(data);
+        if (data && data.version) {
+          const savedInstalled = localStorage.getItem('installed_app_version');
+          const savedDismissed = localStorage.getItem('dismissed_app_version');
+          const currentAppVer = Math.max(APP_VERSION_CODE, parseInt(savedInstalled || '0', 10));
+          
+          if (data.version > currentAppVer && String(data.version) !== savedDismissed) {
+            setUpdateAvailable(data);
+          }
         }
       })
       .catch(err => console.error('Failed to check app version', err));
@@ -3325,12 +3331,23 @@ export default function EmployeePortal() {
                        }
                      }
                      window.open(targetUrl, '_system');
-                     setUpdateAvailable(null); // optional: hide after clicked
+                     localStorage.setItem('installed_app_version', String(updateAvailable.version));
+                     setUpdateAvailable(null);
                   }}
                   className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:opacity-95 text-white font-black rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-blue-900/50 flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" />
                   <span>Update Sekarang</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    localStorage.setItem('dismissed_app_version', String(updateAvailable.version));
+                    setUpdateAvailable(null);
+                  }}
+                  className="w-full mt-3 py-2 text-slate-400 hover:text-white text-xs font-semibold tracking-wider transition"
+                >
+                  Nanti Saja
                 </button>
               </div>
             </motion.div>
