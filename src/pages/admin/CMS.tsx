@@ -81,6 +81,7 @@ export default function CMS() {
   const [formData, setFormData] = useState({ title: '', content: '', type: 'PENGUMUMAN', mediaUrl: '', isPopup: false });
   const [galleryFormData, setGalleryFormData] = useState({ title: '', mediaUrl: '' });
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingApk, setIsUploadingApk] = useState(false);
   const [showPreviewPane, setShowPreviewPane] = useState(true);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1109,9 +1110,10 @@ export default function CMS() {
               </div>
               
               <div>
-                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider font-mono block">Version Code (Angka, contoh: 2)</label>
+                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider font-mono block">Version Code (Angka Bulat, contoh: 2 atau 3)</label>
                 <input 
                   type="number" 
+                  step="1"
                   id="apkVersion"
                   className="mt-1 w-full bg-white border border-slate-200 text-slate-800 text-xs font-semibold rounded-xl px-4 py-3 focus:border-blue-500 outline-none" 
                   placeholder="2"
@@ -1128,6 +1130,7 @@ export default function CMS() {
               </div>
               
               <button 
+                disabled={isUploadingApk}
                 onClick={async () => {
                    const fileInput = document.getElementById('apkUpload') as HTMLInputElement;
                    const versionInput = document.getElementById('apkVersion') as HTMLInputElement;
@@ -1138,16 +1141,19 @@ export default function CMS() {
                       return;
                    }
                    if (!versionInput.value) {
-                      alert('Masukkan Version Code');
+                      alert('Masukkan Version Code (angka, misal: 2)');
                       return;
                    }
                    
                    const file = fileInput.files[0];
+                   setIsUploadingApk(true);
+
                    const reader = new FileReader();
                    reader.onload = async (e) => {
                       const base64Data = e.target?.result as string;
                       try {
-                        const res = await fetch('/api/admin/upload-apk', {
+                        const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+                        const res = await fetch(baseUrl + '/api/admin/upload-apk', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
@@ -1156,24 +1162,51 @@ export default function CMS() {
                              releaseNotes: notesInput.value
                           })
                         });
+                        
+                        if (!res.ok) {
+                          if (res.status === 413) {
+                            throw new Error('Ukuran file APK melebihi batas upload web server Nginx (413 Request Entity Too Large). Tambahkan "client_max_body_size 100M;" di konfigurasi Nginx VPS.');
+                          }
+                          const errText = await res.text();
+                          try {
+                            const errJson = JSON.parse(errText);
+                            throw new Error(errJson.error || errJson.message || 'Gagal mengunggah');
+                          } catch {
+                            throw new Error(`Server merespons error HTTP ${res.status}`);
+                          }
+                        }
+
                         const data = await res.json();
                         if (data.success) {
-                           alert('APK berhasil diunggah!');
+                           alert('APK berhasil diunggah dan dipublish!');
                            fileInput.value = '';
                            versionInput.value = '';
                            notesInput.value = '';
                         } else {
-                           alert('Gagal mengunggah APK: ' + data.error);
+                           alert('Gagal mengunggah APK: ' + (data.error || 'Terjadi kesalahan'));
                         }
                       } catch (err: any) {
-                        alert('Error: ' + err.message);
+                        alert('Error Upload: ' + err.message);
+                      } finally {
+                        setIsUploadingApk(false);
                       }
+                   };
+                   reader.onerror = () => {
+                     alert('Gagal membaca file APK.');
+                     setIsUploadingApk(false);
                    };
                    reader.readAsDataURL(file);
                 }}
-                className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors"
+                className="w-full bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors flex items-center justify-center gap-2"
               >
-                Unggah & Publish Versi Baru
+                {isUploadingApk ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>Mengunggah file APK ke server...</span>
+                  </>
+                ) : (
+                  <span>Unggah & Publish Versi Baru</span>
+                )}
               </button>
             </div>
           </motion.div>

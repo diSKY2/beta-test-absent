@@ -134,7 +134,7 @@ export default function EmployeePortal() {
   const [currentTime, setCurrentTime] = useState(new Date());
   
   // App Update State
-  const [updateAvailable, setUpdateAvailable] = useState<{version: number, releaseNotes: string} | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState<{version: number, releaseNotes: string, downloadUrl?: string} | null>(null);
   const APP_VERSION_CODE = 1; // Current hardcoded app version
   
   // Attendance Pop-up state
@@ -3315,7 +3315,16 @@ export default function EmployeePortal() {
                 
                 <button
                   onClick={() => {
-                     window.open(API_BASE_URL + '/app-release.apk', '_system');
+                     const fallbackDomain = 'https://garudatrisulaperkasa.web.id';
+                     let targetUrl = updateAvailable.downloadUrl;
+                     if (!targetUrl || targetUrl.includes('localhost')) {
+                       if (API_BASE_URL && API_BASE_URL.startsWith('http') && !API_BASE_URL.includes('localhost')) {
+                         targetUrl = `${API_BASE_URL}/app-release.apk`;
+                       } else {
+                         targetUrl = `${fallbackDomain}/app-release.apk`;
+                       }
+                     }
+                     window.open(targetUrl, '_system');
                      setUpdateAvailable(null); // optional: hide after clicked
                   }}
                   className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:opacity-95 text-white font-black rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-blue-900/50 flex items-center justify-center gap-2"

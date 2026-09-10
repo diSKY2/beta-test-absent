@@ -847,10 +847,18 @@ apiRouter.post('/admin/upload-apk', async (req, res) => {
 apiRouter.get('/app-version', async (req, res) => {
   try {
     const existing = await db.select().from(companyInfo).where(eq(companyInfo.configKey, 'app_version'));
+    const host = req.get('host') || 'garudatrisulaperkasa.web.id';
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const defaultDownloadUrl = `${proto}://${host}/app-release.apk`;
+
     if (existing.length > 0) {
-      res.json(JSON.parse(existing[0].content));
+      const parsed = JSON.parse(existing[0].content);
+      res.json({
+        ...parsed,
+        downloadUrl: parsed.downloadUrl || defaultDownloadUrl
+      });
     } else {
-      res.json({ version: 1, releaseNotes: '' });
+      res.json({ version: 1, releaseNotes: '', downloadUrl: defaultDownloadUrl });
     }
   } catch(err: any) {
     res.status(500).json({ error: err.message });
