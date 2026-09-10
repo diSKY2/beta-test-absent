@@ -844,6 +844,25 @@ apiRouter.post('/admin/upload-apk', async (req, res) => {
   }
 });
 
+apiRouter.post('/admin/reset-app-version', async (req, res) => {
+  try {
+    const configContent = JSON.stringify({ version: 1, releaseNotes: '', isEnabled: false });
+    const existing = await db.select().from(companyInfo).where(eq(companyInfo.configKey, 'app_version'));
+    if (existing.length > 0) {
+      await db.update(companyInfo).set({ content: configContent, updatedAt: new Date() }).where(eq(companyInfo.configKey, 'app_version'));
+    } else {
+      await db.insert(companyInfo).values({
+        id: uuidv4(),
+        configKey: 'app_version',
+        content: configContent,
+      });
+    }
+    res.json({ success: true, message: 'App version reset to 1 successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 apiRouter.get('/app-version', async (req, res) => {
   try {
     const existing = await db.select().from(companyInfo).where(eq(companyInfo.configKey, 'app_version'));
