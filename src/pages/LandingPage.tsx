@@ -327,6 +327,13 @@ export default function LandingPage() {
                 <span>Daftar Pegawai</span>
               </Link>
               <Link 
+                to="/login?role=kawasdal" 
+                className="group flex items-center gap-1.5 bg-teal-700 text-white px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-teal-800 active:scale-95 transition-all shadow-md hover:shadow-lg border-b-4 border-teal-900"
+              >
+                <Activity className="w-4 h-4 text-teal-100 group-hover:scale-110 transition-transform" />
+                <span>Kawasdal</span>
+              </Link>
+              <Link 
                 to="/login" 
                 className="group flex items-center gap-1.5 bg-[#0C2461] text-white px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-600 active:scale-95 transition-all shadow-md hover:shadow-lg border-b-4 border-red-700 hover:border-red-800"
               >

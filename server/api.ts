@@ -353,8 +353,9 @@ apiRouter.post('/employee/dashboard-data', async (req, res) => {
 
 apiRouter.post('/admin/register', async (req, res) => {
   try {
-    const { email, password, name } = req.body;
-    const newAdmin = { id: uuidv4(), email, password, name, role: 'admin' };
+    const { email, password, name, role } = req.body;
+    const assignedRole = role === 'kawasdal' ? 'kawasdal' : 'admin';
+    const newAdmin = { id: uuidv4(), email, password, name, role: assignedRole };
     await db.insert(admins).values(newAdmin);
     res.json({ success: true, user: { id: newAdmin.id, email: newAdmin.email, name: newAdmin.name, role: newAdmin.role } });
   } catch (err: any) {

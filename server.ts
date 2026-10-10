@@ -24,6 +24,19 @@ async function seedAdmin() {
       });
       console.log("Super Admin seeded successfully: admin@admin.com / admin");
     }
+
+    const existingKawasdal = await db.select().from(admins).where(eq(admins.email, "kawasdal@perusahaan.com")).limit(1);
+    if (existingKawasdal.length === 0) {
+      console.log("Seeding initial Management Kawasdal...");
+      await db.insert(admins).values({
+        id: uuidv4(),
+        email: "kawasdal@perusahaan.com",
+        password: "kawasdal123",
+        name: "Management Kawasdal",
+        role: "kawasdal",
+      });
+      console.log("Management Kawasdal seeded successfully: kawasdal@perusahaan.com / kawasdal123");
+    }
   } catch (error: any) {
     if (error.code !== '42P01') { // Ignore undefined table errors if migration hasn't run yet
         console.error("Auto-Seed error:", error.message);

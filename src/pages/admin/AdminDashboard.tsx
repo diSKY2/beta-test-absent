@@ -13,7 +13,7 @@ import { db } from '../../lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function AdminDashboard() {
-  const { user, signOut } = useAuth();
+  const { user, isKawasdal, signOut } = useAuth();
   const location = useLocation();
   const [currentTime, setCurrentTime] = useState(new Date());
   
@@ -58,12 +58,12 @@ export default function AdminDashboard() {
     fetchCompanyProfile();
   }, []);
 
-  const navigation = [
+  const allNavigation = [
     { 
       name: 'Dashboard & Log Absen', 
       href: '/admin', 
       icon: PieChart, 
-      desc: 'Ringkasan presensi & radar geofencing' 
+      desc: isKawasdal ? 'Pantau pegawai sudah & belum absen' : 'Ringkasan presensi & radar geofencing' 
     },
     {
       group: 'Operasional',
@@ -90,10 +90,10 @@ export default function AdminDashboard() {
       desc: 'Radius toleransi GPS pos' 
     },
     { 
-      name: 'Manajemen Akun HRD', 
+      name: 'Manajemen Akun HRD & Kawasdal', 
       href: '/admin/hr-users', 
       icon: UserCheck, 
-      desc: 'Otorisasi kredensial tim' 
+      desc: 'Otorisasi kredensial tim & Kawasdal' 
     },
     { 
       name: 'CMS Profil & Pengaturan', 
@@ -102,6 +102,8 @@ export default function AdminDashboard() {
       desc: 'Modifikasi landing page' 
     },
   ];
+
+  const navigation = isKawasdal ? allNavigation.slice(0, 1) : allNavigation;
 
   const currentRouteName = () => {
     for (const nav of navigation) {
@@ -117,7 +119,7 @@ export default function AdminDashboard() {
         }
       }
     }
-    return 'Administrator Panel';
+    return isKawasdal ? 'Portal Kawasdal' : 'Administrator Panel';
   };
 
   const routeName = currentRouteName();
@@ -133,7 +135,7 @@ export default function AdminDashboard() {
             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
           </span>
           <span className="text-[10px] text-blue-700 font-bold tracking-widest uppercase">
-            Sistem Operasional HRD Aktif
+            {isKawasdal ? 'Sistem Pemantauan Management Kawasdal Aktif' : 'Sistem Operasional HRD Aktif'}
           </span>
         </div>
         
@@ -146,7 +148,7 @@ export default function AdminDashboard() {
             </span>
           </div>
           <div className="text-[10px] text-slate-500 font-bold tracking-widest uppercase hidden lg:block">
-            KONSOL ADMINISTRATOR
+            {isKawasdal ? 'KONSOL MANAGEMENT KAWASDAL' : 'KONSOL ADMINISTRATOR'}
           </div>
         </div>
       </div>
@@ -175,23 +177,27 @@ export default function AdminDashboard() {
                   {companyProfile.name}
                 </h1>
                 <p className="text-[10px] text-red-600 font-bold tracking-wider uppercase mt-0.5">
-                  COMMAND ROOM
+                  {isKawasdal ? 'MANAGEMENT KAWASDAL' : 'COMMAND ROOM'}
                 </p>
               </div>
             </div>
 
             {/* Admin User Badge */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex gap-3 relative overflow-hidden">
-               <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600" />
-               <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 border border-slate-200 text-blue-700">
+               <div className={`absolute top-0 left-0 w-1.5 h-full ${isKawasdal ? 'bg-teal-600' : 'bg-blue-600'}`} />
+               <div className={`w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 border border-slate-200 ${isKawasdal ? 'text-teal-700' : 'text-blue-700'}`}>
                  <Building2 className="w-5 h-5" />
                </div>
                <div className="overflow-hidden flex flex-col justify-center">
-                 <p className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Session Operator</p>
-                 <p className="text-xs font-extrabold text-slate-900 truncate mt-0.5">
-                   {user?.displayName || user?.email?.split('@')[0] || 'Administrator'}
+                 <p className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">
+                   {isKawasdal ? 'Management Kawasdal' : 'Session Operator'}
                  </p>
-                 <p className="text-[10px] text-slate-500 font-medium truncate">Pengelola HRD & Operasional</p>
+                 <p className="text-xs font-extrabold text-slate-900 truncate mt-0.5">
+                   {user?.name || user?.displayName || user?.email?.split('@')[0] || 'Operator'}
+                 </p>
+                 <p className="text-[10px] text-slate-500 font-medium truncate">
+                   {isKawasdal ? 'Pengawasan & Monitoring Absensi' : 'Pengelola HRD & Operasional'}
+                 </p>
                </div>
             </div>
           </div>

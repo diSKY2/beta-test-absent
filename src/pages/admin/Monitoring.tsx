@@ -9,18 +9,21 @@ import { handleFirestoreError, OperationType } from '../../lib/utils';
 import { deleteDoc, doc } from '../../lib/firestoreClient';
 import { auth } from '../../lib/firestoreClient';
 import { useToast } from '../../providers/ToastProvider';
+import { useAuth } from '../../providers/AuthProvider';
 import { getJakartaDateString } from '../../lib/timezone';
 
 const COLORS = ['#14b8a6', '#f59e0b', '#ef4444']; // Hadir/Telat, Izin/Sakit, Alpa
 
 export default function Monitoring() {
   const toast = useToast();
+  const { isKawasdal } = useAuth();
   const [dateFrom, setDateFrom] = useState(getJakartaDateString());
   const [dateTo, setDateTo] = useState(getJakartaDateString());
   const [locations, setLocations] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
   const [selectedLocationId, setSelectedLocationId] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [attendances, setAttendances] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
@@ -397,7 +400,7 @@ export default function Monitoring() {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <p className="text-[10px] font-mono tracking-[0.2em] text-slate-600 uppercase mb-2 flex items-center gap-2">
-            PORTAL ADMINISTRATOR HRD <span className="text-slate-700">•</span> SISTEM SINKRON UTAMA
+            {isKawasdal ? 'PORTAL MANAGEMENT KAWASDAL' : 'PORTAL ADMINISTRATOR HRD'} <span className="text-slate-700">•</span> SISTEM SINKRON UTAMA
           </p>
           <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Dashboard & Log Hari Ini</h2>
         </div>
@@ -532,15 +535,17 @@ export default function Monitoring() {
              </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between bg-white/30 p-3 rounded-lg border border-slate-200">
-             <div className="flex items-center gap-2">
-               <Bell className="w-4 h-4 text-amber-500" />
-               <span className="text-xs text-slate-700"><strong className="text-slate-900">Lembur Pending:</strong> 0 pengajuan belum ditinjau.</span>
-             </div>
-             <button className="text-xs font-semibold text-blue-600 hover:text-blue-600 flex items-center gap-1 transition-colors">
-               Proses Sekarang <ArrowRight className="w-3.5 h-3.5" />
-             </button>
-          </div>
+          {!isKawasdal && (
+            <div className="mt-4 flex items-center justify-between bg-white/30 p-3 rounded-lg border border-slate-200">
+               <div className="flex items-center gap-2">
+                 <Bell className="w-4 h-4 text-amber-500" />
+                 <span className="text-xs text-slate-700"><strong className="text-slate-900">Lembur Pending:</strong> 0 pengajuan belum ditinjau.</span>
+               </div>
+               <button className="text-xs font-semibold text-blue-600 hover:text-blue-600 flex items-center gap-1 transition-colors">
+                 Proses Sekarang <ArrowRight className="w-3.5 h-3.5" />
+               </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -562,25 +567,29 @@ export default function Monitoring() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari nama, NIK..." 
-                className="bg-white border border-slate-300 text-sm text-slate-900 rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:ring-1 focus:ring-teal-500 w-64"
+                className="bg-white border border-slate-300 text-sm text-slate-900 rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 w-56"
               />
             </div>
             
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-600">Dari:</span>
+              <span className="text-slate-600">{isKawasdal ? 'Tanggal:' : 'Dari:'}</span>
               <input 
                 type="date" 
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 className="bg-white border border-slate-300 text-slate-900 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
-              <span className="text-slate-600 ml-2">Sampai (Export):</span>
-              <input 
-                type="date" 
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="bg-white border border-slate-300 text-slate-900 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
+              {!isKawasdal && (
+                <>
+                  <span className="text-slate-600 ml-2">Sampai (Export):</span>
+                  <input 
+                    type="date" 
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="bg-white border border-slate-300 text-slate-900 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  />
+                </>
+              )}
             </div>
             
             <div className="flex items-center gap-2 text-xs">
@@ -596,14 +605,31 @@ export default function Monitoring() {
                 ))}
               </select>
             </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-600">Status Absen:</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-white border border-slate-300 text-slate-900 rounded px-2 py-1.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-semibold"
+              >
+                <option value="all">Semua Pegawai</option>
+                <option value="sudah_absen">✅ Sudah Absen (Hadir)</option>
+                <option value="belum_absen">⏳ Belum Absen</option>
+                <option value="izin_sakit">📋 Izin / Sakit</option>
+                <option value="libur">🏖️ Libur / Off</option>
+              </select>
+            </div>
           </div>
-          <button 
-            onClick={handleExport}
-            className="flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors shadow-lg"
-          >
-            <Download className="w-4 h-4" />
-            Export to Excel (CSV)
-          </button>
+          {!isKawasdal && (
+            <button 
+              onClick={handleExport}
+              className="flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors shadow-lg cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              Export to Excel (CSV)
+            </button>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -689,9 +715,24 @@ export default function Monitoring() {
                                 if(subDeptEmployees.length === 0) return null;
 
                                 const filteredSubDeptEmployees = subDeptEmployees.filter(emp => {
-                                   if (!searchQuery) return true;
-                                   const s = searchQuery.toLowerCase();
-                                   return (emp.name || '').toLowerCase().includes(s) || (emp.nik || '').toLowerCase().includes(s);
+                                   if (searchQuery) {
+                                     const s = searchQuery.toLowerCase();
+                                     const matchesSearch = (emp.name || '').toLowerCase().includes(s) || (emp.nik || '').toLowerCase().includes(s);
+                                     if (!matchesSearch) return false;
+                                   }
+                                   if (statusFilter !== 'all') {
+                                     let empStatus = 'Belum Absen';
+                                     const sched = schedules.find(s => s.employeeId === emp.id && s.dateFormatted === dateFrom);
+                                     if (sched && sched.isOffDay) empStatus = 'Libur / Off';
+                                     const att = attendances.find(attn => attn.date === dateFrom && attn.employeeId === emp.id);
+                                     if (att && att.status) empStatus = att.status;
+                                     const stLower = empStatus.toLowerCase().trim();
+                                     if (statusFilter === 'sudah_absen' && stLower !== 'hadir') return false;
+                                     if (statusFilter === 'belum_absen' && stLower !== 'belum absen') return false;
+                                     if (statusFilter === 'izin_sakit' && stLower !== 'izin' && stLower !== 'sakit') return false;
+                                     if (statusFilter === 'libur' && stLower !== 'libur / off') return false;
+                                   }
+                                   return true;
                                 });
 
                                 return (
@@ -705,7 +746,7 @@ export default function Monitoring() {
                                            <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Sub Bagian / Regu</span>
                                          </div>
                                       </div>
-                                      <span className="text-xs font-mono text-slate-600 pr-2">{subDeptEmployees.length} Pegawai</span>
+                                      <span className="text-xs font-mono text-slate-600 pr-2">{filteredSubDeptEmployees.length} / {subDeptEmployees.length} Pegawai</span>
                                     </div>
 
                                     {isSubDeptExpanded && (
@@ -722,14 +763,14 @@ export default function Monitoring() {
                                               <th className="px-4 py-3 font-semibold w-36">Lembur Masuk</th>
                                               <th className="px-4 py-3 font-semibold w-36">Lembur Pulang</th>
                                               <th className="px-4 py-3 font-semibold w-48">Lokasi GPS & Radius</th>
-<th className="px-4 py-3 font-semibold w-24">Aksi</th>
+                                              {!isKawasdal && <th className="px-4 py-3 font-semibold w-24">Aksi</th>}
                                             </tr>
                                           </thead>
                                           <tbody className="divide-y divide-slate-200/80">
                                             {filteredSubDeptEmployees.length === 0 ? (
                                               <tr>
-                                                <td colSpan={9} className="px-4 py-6 text-center text-slate-500 italic">
-                                                  Pencarian tidak menemukan karyawan di regu ini.
+                                                <td colSpan={isKawasdal ? 9 : 10} className="px-4 py-6 text-center text-slate-500 italic">
+                                                  Filter / pencarian tidak menemukan karyawan di regu ini.
                                                 </td>
                                               </tr>
                                             ) : filteredSubDeptEmployees.map(emp => {
@@ -836,16 +877,18 @@ export default function Monitoring() {
                                                      )}
                                                    </td>
 
-  <td className="px-4 py-3 text-center">
-    {a.id && (
-      <button
-        onClick={() => handleResetAbsen(a.id)}
-        className="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 font-bold rounded text-[10px] uppercase tracking-wider transition-colors"
-      >
-        Tolak / Reset
-      </button>
-    )}
-  </td>
+                                                   {!isKawasdal && (
+                                                     <td className="px-4 py-3 text-center">
+                                                       {a.id && (
+                                                         <button
+                                                           onClick={() => handleResetAbsen(a.id)}
+                                                           className="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 font-bold rounded text-[10px] uppercase tracking-wider transition-colors"
+                                                         >
+                                                           Tolak / Reset
+                                                         </button>
+                                                       )}
+                                                     </td>
+                                                   )}
 
                                                  </tr>
                                                );

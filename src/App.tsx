@@ -24,11 +24,20 @@ import EmployeePortal from './pages/EmployeePortal';
 import RegisterPage from './pages/RegisterPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, isKawasdal, loading } = useAuth();
   
   if (loading) return <div className="flex h-screen items-center justify-center p-4">Loading...</div>;
-  if (!user || !isAdmin) return <Navigate to="/login" replace />;
+  if (!user || (!isAdmin && !isKawasdal)) return <Navigate to="/login" replace />;
   
+  return <>{children}</>;
+}
+
+function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { isAdmin, loading } = useAuth();
+
+  if (loading) return <div className="flex h-screen items-center justify-center p-4">Loading...</div>;
+  if (!isAdmin) return <Navigate to="/admin" replace />;
+
   return <>{children}</>;
 }
 
@@ -67,15 +76,15 @@ export default function App() {
               }
             >
               <Route index element={<Monitoring />} />
-              <Route path="rostering" element={<Rostering />} />
-              <Route path="approvals" element={<Approvals />} />
-              <Route path="payroll" element={<Payroll />} />
-              <Route path="organization" element={<OrgStructure />} />
-              <Route path="geofencing" element={<Geofencing />} />
-              <Route path="reports" element={<WorkReports />} />
-              <Route path="hr-users" element={<HRAdminManager />} />
-              <Route path="registrations" element={<HRRegistrations />} />
-              <Route path="settings" element={<CMS />} />
+              <Route path="rostering" element={<AdminOnlyRoute><Rostering /></AdminOnlyRoute>} />
+              <Route path="approvals" element={<AdminOnlyRoute><Approvals /></AdminOnlyRoute>} />
+              <Route path="payroll" element={<AdminOnlyRoute><Payroll /></AdminOnlyRoute>} />
+              <Route path="organization" element={<AdminOnlyRoute><OrgStructure /></AdminOnlyRoute>} />
+              <Route path="geofencing" element={<AdminOnlyRoute><Geofencing /></AdminOnlyRoute>} />
+              <Route path="reports" element={<AdminOnlyRoute><WorkReports /></AdminOnlyRoute>} />
+              <Route path="hr-users" element={<AdminOnlyRoute><HRAdminManager /></AdminOnlyRoute>} />
+              <Route path="registrations" element={<AdminOnlyRoute><HRRegistrations /></AdminOnlyRoute>} />
+              <Route path="settings" element={<AdminOnlyRoute><CMS /></AdminOnlyRoute>} />
             </Route>
           </Routes>
         </BrowserRouter>

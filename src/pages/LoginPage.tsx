@@ -1,17 +1,29 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router';
-import { ArrowLeft, Lock, Mail, KeyRound, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router';
+import { ArrowLeft, Lock, Mail, KeyRound, ShieldAlert, Eye, ShieldCheck } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 
 export default function LoginPage() {
+  const [searchParams] = useSearchParams();
+  const [loginMode, setLoginMode] = useState<'admin' | 'kawasdal'>(
+    searchParams.get('role') === 'kawasdal' ? 'kawasdal' : 'admin'
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (searchParams.get('role') === 'kawasdal') {
+      setLoginMode('kawasdal');
+    } else if (searchParams.get('role') === 'admin') {
+      setLoginMode('admin');
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,16 +52,35 @@ export default function LoginPage() {
            const regResponse = await fetch(API_BASE_URL + '/api/admin/register', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ email: trimmedEmail, password, name: 'Admin Perusahaan' })
+             body: JSON.stringify({ email: trimmedEmail, password, name: 'Admin Perusahaan', role: 'admin' })
            });
            
            if (regResponse.ok) {
               const regData = await regResponse.json();
               localStorage.setItem('appSession', JSON.stringify({ user: regData.user, token: 'dev-token' }));
-              window.location.href = '/admin'; // Force reload to apply auth state
+              window.location.href = '/admin';
               return;
            } else {
               setError('Gagal menginisiasi akun default administrator.');
+              setLoading(false);
+              return;
+           }
+        }
+
+        if (data.error === 'Kredensial tidak valid' && trimmedEmail === 'kawasdal@perusahaan.com' && password === 'kawasdal123') {
+           const regResponse = await fetch(API_BASE_URL + '/api/admin/register', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ email: trimmedEmail, password, name: 'Management Kawasdal', role: 'kawasdal' })
+           });
+           
+           if (regResponse.ok) {
+              const regData = await regResponse.json();
+              localStorage.setItem('appSession', JSON.stringify({ user: regData.user, token: 'dev-token' }));
+              window.location.href = '/admin';
+              return;
+           } else {
+              setError('Gagal menginisiasi akun default Kawasdal.');
               setLoading(false);
               return;
            }
@@ -74,7 +105,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 flex font-sans overflow-hidden relative antialiased">
       
       {/* Decorative ambient background */}
-      <div className="absolute top-0 left-0 w-full h-1/2 bg-blue-700 pointer-events-none -z-10" />
+      <div className={`absolute top-0 left-0 w-full h-1/2 pointer-events-none -z-10 transition-colors duration-500 ${loginMode === 'kawasdal' ? 'bg-teal-800' : 'bg-blue-700'}`} />
 
       {/* Left Column: Corporate Brand Showcase */}
       <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-16 text-white">
@@ -82,7 +113,7 @@ export default function LoginPage() {
         {/* Return Button */}
         <Link 
           to="/" 
-          className="self-start flex items-center gap-2 text-blue-100 hover:text-white transition-colors bg-blue-800/50 border border-blue-600 px-4 py-2 rounded-xl text-xs font-bold backdrop-blur-sm"
+          className="self-start flex items-center gap-2 text-blue-100 hover:text-white transition-colors bg-black/20 border border-white/20 px-4 py-2 rounded-xl text-xs font-bold backdrop-blur-sm"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Kembali ke Landing Page</span>
@@ -91,13 +122,15 @@ export default function LoginPage() {
         {/* Core Slogan Info */}
         <div className="max-w-md space-y-6 mt-12">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 border border-white/20 rounded-full text-blue-100 text-[10px] font-bold uppercase tracking-wider font-mono backdrop-blur-sm">
-            SECURE ACCESS PORTAL
+            {loginMode === 'kawasdal' ? 'KAWASDAL MONITORING PORTAL' : 'SECURE ACCESS PORTAL'}
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight tracking-tight">
-            HQ COMMAND CONTROL
+            {loginMode === 'kawasdal' ? 'KAWASDAL MONITORING' : 'HQ COMMAND CONTROL'}
           </h1>
           <p className="text-sm text-blue-100 leading-relaxed text-justify">
-            Gerbang masuk terenkripsi khusus untuk tim HRD dan Pengawas Lapangan PT. Garuda Trisula Perkasa untuk mengatur roster, validasi klaim, koordinasi geofence, dan payroll.
+            {loginMode === 'kawasdal'
+              ? 'Portal pemantauan kehadiran real-time khusus untuk Management Kawasdal PT. Garuda Trisula Perkasa guna memonitor personel yang sudah absen maupun belum absen di seluruh unit kerja.'
+              : 'Gerbang masuk terenkripsi khusus untuk tim HRD dan Pengawas Lapangan PT. Garuda Trisula Perkasa untuk mengatur roster, validasi klaim, koordinasi geofence, dan payroll.'}
           </p>
         </div>
 
@@ -114,17 +147,51 @@ export default function LoginPage() {
         {/* Top return for mobile/tablet screens */}
         <Link 
           to="/" 
-          className="lg:hidden absolute top-8 left-8 flex items-center gap-1.5 text-blue-100 hover:text-white transition-colors bg-blue-800/50 border border-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold backdrop-blur-sm"
+          className="lg:hidden absolute top-8 left-8 flex items-center gap-1.5 text-blue-100 hover:text-white transition-colors bg-black/20 border border-white/20 px-3 py-1.5 rounded-xl text-xs font-bold backdrop-blur-sm"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Kembali</span>
         </Link>
 
-        <div className="w-full max-w-md space-y-8 bg-white border border-slate-200 p-8 sm:p-10 rounded-3xl shadow-xl z-10 mt-16 lg:mt-0">
+        <div className="w-full max-w-md space-y-6 bg-white border border-slate-200 p-8 sm:p-10 rounded-3xl shadow-xl z-10 mt-16 lg:mt-0">
           
-          <div className="text-center sm:text-left space-y-2">
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Otentikasi Admin</h2>
-            <p className="text-xs text-slate-500 font-medium">Gunakan kredensial resmi untuk mengakses command center.</p>
+          {/* Role Mode Switcher */}
+          <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => { setLoginMode('admin'); setError(''); }}
+              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                loginMode === 'admin'
+                  ? 'bg-blue-700 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              <span>Admin HRD</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoginMode('kawasdal'); setError(''); }}
+              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                loginMode === 'kawasdal'
+                  ? 'bg-teal-700 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Eye className="w-4 h-4 shrink-0" />
+              <span>Kawasdal</span>
+            </button>
+          </div>
+
+          <div className="text-center sm:text-left space-y-1.5">
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              {loginMode === 'kawasdal' ? 'Login Kawasdal' : 'Otentikasi Admin'}
+            </h2>
+            <p className="text-xs text-slate-500 font-medium">
+              {loginMode === 'kawasdal'
+                ? 'Masuk untuk memantau daftar pegawai yang sudah absen & belum absen.'
+                : 'Gunakan kredensial resmi untuk mengakses command center HRD.'}
+            </p>
           </div>
           
           {error && (
@@ -138,9 +205,11 @@ export default function LoginPage() {
             </motion.div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider font-mono">Email Operator</label>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider font-mono">
+                {loginMode === 'kawasdal' ? 'Email Management Kawasdal' : 'Email Operator HRD'}
+              </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                 <input 
@@ -149,7 +218,7 @@ export default function LoginPage() {
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 pl-11 pr-4 py-3.5 transition-all outline-none"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@perusahaan.com"
+                  placeholder={loginMode === 'kawasdal' ? 'kawasdal@perusahaan.com' : 'admin@perusahaan.com'}
                 />
               </div>
             </div>
@@ -172,7 +241,11 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full relative flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-800 active:scale-95 text-white px-4 py-3.5 rounded-xl transition-all font-bold text-sm shadow-md disabled:opacity-70 disabled:cursor-not-allowed group overflow-hidden cursor-pointer"
+              className={`w-full relative flex items-center justify-center gap-2 active:scale-95 text-white px-4 py-3.5 rounded-xl transition-all font-bold text-sm shadow-md disabled:opacity-70 disabled:cursor-not-allowed group overflow-hidden cursor-pointer ${
+                loginMode === 'kawasdal'
+                  ? 'bg-teal-700 hover:bg-teal-800'
+                  : 'bg-blue-700 hover:bg-blue-800'
+              }`}
             >
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -182,7 +255,7 @@ export default function LoginPage() {
               ) : (
                 <span className="flex items-center gap-2">
                   <Lock className="w-4 h-4" />
-                  Masuk ke Command Center
+                  {loginMode === 'kawasdal' ? 'Masuk Portal Kawasdal' : 'Masuk ke Command Center'}
                 </span>
               )}
             </button>

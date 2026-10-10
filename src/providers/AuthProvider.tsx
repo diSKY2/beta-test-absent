@@ -10,6 +10,7 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null | any; // allow custom user
   isAdmin: boolean;
+  isKawasdal: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -17,6 +18,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isAdmin: false,
+  isKawasdal: false,
   loading: true,
   signOut: async () => {},
 });
@@ -24,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isKawasdal, setIsKawasdal] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,7 +35,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         const session = JSON.parse(sessionStr);
         setUser(session.user);
-        setIsAdmin(session.user.role === 'admin');
+        setIsAdmin(session.user?.role === 'admin');
+        setIsKawasdal(session.user?.role === 'kawasdal');
       } catch (e) {
         localStorage.removeItem('appSession');
       }
@@ -43,11 +47,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     setUser(null);
     setIsAdmin(false);
+    setIsKawasdal(false);
     localStorage.removeItem('appSession');
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, signOut }}>
+    <AuthContext.Provider value={{ user, isAdmin, isKawasdal, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );
