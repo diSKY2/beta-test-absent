@@ -179,27 +179,6 @@ export default function EmployeePortal() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (res.ok) {
-         const datePart = new Date(leaveDate).toISOString().split('T')[0];
-         const attId = `${currentEmployee.id}_${datePart}`;
-         await fetch(API_BASE_URL + '/api/sql/rpc', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-               action: 'setDoc',
-               collection: 'attendances',
-               docId: attId,
-               data: {
-                  employeeId: currentEmployee.id,
-                  attendanceDate: new Date(leaveDate),
-                  status: leaveType,
-                  type: 'Leave',
-                  reason: leaveReason
-               },
-               options: { merge: true }
-            })
-         });
-      }
 
       if (res.ok) {
         triggerToast(`Berhasil membatalkan absensi anggota.`);
@@ -321,7 +300,7 @@ export default function EmployeePortal() {
     fetch(API_BASE_URL + '/api/app-version')
       .then(res => res.json())
       .then(data => {
-        if (data && data.version) {
+      if ( data && data.version ) {
           const savedInstalled = localStorage.getItem('installed_app_version');
           const savedDismissed = localStorage.getItem('dismissed_app_version');
           const currentAppVer = Math.max(APP_VERSION_CODE, parseInt(savedInstalled || '0', 10));
@@ -333,11 +312,12 @@ export default function EmployeePortal() {
       })
       .catch(err => console.error('Failed to check app version', err));
   }, []);
+
   useEffect(() => {
-    if (activeTab === 'tukar_jadwal') {
+    if (activeTab === 'tukar_jadwal' && allEmployees.length === 0 && currentEmployee) {
       fetchShiftExchangesData();
     }
-  }, [activeTab, currentEmployee]);
+  }, [activeTab, currentEmployee?.id]);
 
   useEffect(() => {
     if (exchangeReplacerId) {
@@ -562,18 +542,72 @@ export default function EmployeePortal() {
     };
   }, [showAttendanceModal, selfiePreview]);
 
+  // Fast client-side image compression helper (reduces Base64 size to ~20-35KB for instant upload on weak mobile signals)
+  const compressImageDataUrl = (dataUrl: string, maxDim = 480, quality = 0.55): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > height && width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else if (height >= width && height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } else {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  };
+
+  // Automatic retry helper for critical mobile requests (e.g. Clock-In / Clock-Out on unstable field networks)
+  const fetchWithRetry = async (url: string, options: RequestInit, retries = 3): Promise<Response> => {
+    let lastError: any;
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok || (res.status >= 400 && res.status < 500)) {
+          return res;
+        }
+        lastError = new Error(`Server status ${res.status}`);
+      } catch (err) {
+        lastError = err;
+      }
+      if (attempt < retries - 1) {
+        await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
+      }
+    }
+    throw lastError || new Error('Gagal terhubung ke server');
+  };
+
   const handleNativeCamera = async () => {
     try {
       const image = await CapacitorCamera.getPhoto({
         quality: 50,
-        width: 800,
+        width: 480,
         allowEditing: false,
         resultType: CameraResultType.DataUrl,
         source: CameraSource.Camera,
         direction: 'FRONT' as any
       });
       if (image.dataUrl) {
-         setSelfiePreview(image.dataUrl);
+         const compressed = await compressImageDataUrl(image.dataUrl, 480, 0.55);
+         setSelfiePreview(compressed);
          setCameraError(null);
       }
     } catch (e: any) {
@@ -585,12 +619,24 @@ export default function EmployeePortal() {
   const captureSelfie = async () => {
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
+      const vWidth = videoRef.current.videoWidth || 480;
+      const vHeight = videoRef.current.videoHeight || 640;
+      const maxDim = 480;
+      let width = vWidth;
+      let height = vHeight;
+      if (width > height && width > maxDim) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else if (height >= width && height > maxDim) {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+      canvas.width = width;
+      canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        ctx.drawImage(videoRef.current, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.55);
         setSelfiePreview(dataUrl);
         if (cameraStream) {
           cameraStream.getTracks().forEach(track => track.stop());
@@ -607,28 +653,23 @@ export default function EmployeePortal() {
     }
   }, [isLoggedIn, currentEmployee?.id]);
 
+  // Unified Single-Door Data Fetcher ("Satu Pintu" via /api/employee/dashboard-data)
   const fetchEmployeeResources = async (isSoftRefresh = false) => {
     if (!currentEmployee) return;
     try {
       const shouldFetchStatic = !isSoftRefresh || !staticDataFetched.current;
       const isLeader = !!(currentEmployee.role && (currentEmployee.role.toLowerCase().includes('ketua') || currentEmployee.role.toLowerCase().includes('leader') || currentEmployee.role.toLowerCase().includes('danru') || currentEmployee.role.toLowerCase().includes('chief') || currentEmployee.role.toLowerCase().includes('waka')));
 
-      const fetchPromises: Promise<Response>[] = [
-        fetch(API_BASE_URL + '/api/employee/dashboard-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            employeeId: currentEmployee.id,
-            subDepartmentId: currentEmployee.subDepartmentId,
-            isLeader,
-            isSoftRefresh: !shouldFetchStatic
-          })
-        }),
-        fetch(API_BASE_URL + '/api/schedules/employee/' + currentEmployee.id)
-      ];
-
-      const responses = await Promise.all(fetchPromises);
-      const res = responses[0];
+      const res = await fetchWithRetry(API_BASE_URL + '/api/employee/dashboard-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: currentEmployee.id,
+          subDepartmentId: currentEmployee.subDepartmentId,
+          isLeader,
+          isSoftRefresh: !shouldFetchStatic
+        })
+      }, 2);
 
       if (!res.ok) {
         if (res.status === 404) {
@@ -640,9 +681,13 @@ export default function EmployeePortal() {
 
       const data = await res.json();
       
-      // 0. Refresh current logged-in employee status to detect deactivation instantly
+      // 0. Refresh current logged-in employee status to detect deactivation instantly (preserve cached profilePicUrl on soft refresh)
       if (data.employee) {
-        const freshEmp = data.employee;
+        const freshEmp = {
+          ...currentEmployee,
+          ...data.employee,
+          profilePicUrl: data.employee.profilePicUrl || currentEmployee.profilePicUrl
+        };
         setCurrentEmployee(freshEmp);
         localStorage.setItem('employeeSession', JSON.stringify(freshEmp));
         if (freshEmp.status && freshEmp.status !== 'Aktif') {
@@ -658,30 +703,25 @@ export default function EmployeePortal() {
         if (myLoc) setOfficeLocation(myLoc);
       }
 
-      // 2. Compute dynamic 7-day schedule (including yesterday for cross-day shift context)
-      if (responses[1]) {
-         try {
-           const schRes = responses[1];
-           if (schRes.ok) {
-              const computedSchedules = await schRes.json();
-              const jakartaTodayStr = getJakartaDateString();
-              const [tY, tM, tD] = jakartaTodayStr.split('-').map(Number);
-              const yesterdayStr = getJakartaDateString(new Date(Date.UTC(tY, tM - 1, tD - 1)));
-              const nextWeekStr = getJakartaDateString(new Date(Date.UTC(tY, tM - 1, tD + 7)));
-              
-              const dashboardSchedules = computedSchedules.filter((s: any) => {
-                 const sDateStr = s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : getJakartaDateString(s.date)) : '';
-                 return sDateStr >= yesterdayStr && sDateStr <= nextWeekStr;
-              });
-              setSchedulesList(dashboardSchedules);
-              
-              const futureSchedules = computedSchedules.filter((s: any) => {
-                 const sDateStr = s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : getJakartaDateString(s.date)) : '';
-                 return sDateStr >= yesterdayStr && !s.isOffDay;
-              });
-              setMyFutureSchedules(futureSchedules);
-           }
-         } catch(e) { console.error(e); }
+      // 2. Process dynamic schedules returned directly inside dashboard-data ("Satu Pintu")
+      if (data.schedules && Array.isArray(data.schedules)) {
+        const computedSchedules = data.schedules;
+        const jakartaTodayStr = getJakartaDateString();
+        const [tY, tM, tD] = jakartaTodayStr.split('-').map(Number);
+        const yesterdayStr = getJakartaDateString(new Date(Date.UTC(tY, tM - 1, tD - 1)));
+        const nextWeekStr = getJakartaDateString(new Date(Date.UTC(tY, tM - 1, tD + 7)));
+        
+        const dashboardSchedules = computedSchedules.filter((s: any) => {
+           const sDateStr = s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : getJakartaDateString(s.date)) : '';
+           return sDateStr >= yesterdayStr && sDateStr <= nextWeekStr;
+        });
+        setSchedulesList(dashboardSchedules);
+        
+        const futureSchedules = computedSchedules.filter((s: any) => {
+           const sDateStr = s.date ? (typeof s.date === 'string' ? s.date.split('T')[0] : getJakartaDateString(s.date)) : '';
+           return sDateStr >= yesterdayStr && !s.isOffDay;
+        });
+        setMyFutureSchedules(futureSchedules);
       }
 
       // 3. Fetch today's attendance state
@@ -689,7 +729,6 @@ export default function EmployeePortal() {
         const attData = data.attendances;
         setAttendancesHistory(attData);
         
-        // 3. Resolve active/today attendance using Asia/Jakarta (WIB)
         const todayStr = getJakartaDateString();
         const schedData = data.schedules || [];
         const todaySchedule = schedData.find((sch: any) => {
@@ -711,7 +750,6 @@ export default function EmployeePortal() {
           const diffCalendarDays = Math.floor((Date.UTC(curY, curM - 1, curD) - Date.UTC(attY, attM - 1, attD)) / (1000 * 3600 * 24));
           
           if (isTodayOffDay && diffCalendarDays >= 2) {
-             // Drop it, it's the second day of holiday
              targetAtt = null;
           } else {
              targetAtt = latestIncomplete;
@@ -743,14 +781,21 @@ export default function EmployeePortal() {
         setWorkReportsHistory(data.workReports);
       }
 
-      // 7. Group Member Check for Leaders (Ketua Regu)
+      // 7. Shift Exchanges & Exchange Employees (included in Satu Pintu response)
+      if (data.shiftExchanges) {
+        setExchangeList(data.shiftExchanges);
+      }
+      if (shouldFetchStatic && data.exchangeEmployees) {
+        setAllEmployees(data.exchangeEmployees);
+      }
+
+      // 8. Group Member Check for Leaders (Ketua Regu / Danru / Chief)
       if (isLeader) {
         if (shouldFetchStatic && data.teamEmployees) {
           const list = data.teamEmployees;
           setAllSubDeptEmployees(list.filter((e: any) => e.id !== currentEmployee.id));
         }
 
-        // Fetch team attendances to show in Squad Command Panel (including yesterday's night shift)
         if (data.teamAttendances) {
           const now = new Date();
           const y = now.getFullYear();
@@ -775,11 +820,10 @@ export default function EmployeePortal() {
         }
       }
 
-      // 8. Fetch Announcements for Urgent Popup Modal
+      // 9. Fetch Announcements for Urgent Popup Modal
       if (shouldFetchStatic) {
         let fetchedAnnouncements: any[] = data.announcements || [];
 
-        // If no announcements are found in database, seed a default fallback announcement for premium presentation
         if (fetchedAnnouncements.length === 0) {
           fetchedAnnouncements = [{
             id: 'default-command-sop-announcement',
@@ -790,7 +834,6 @@ export default function EmployeePortal() {
           }];
         }
 
-        // Find latest announcement
         if (fetchedAnnouncements.length > 0) {
           const latest = fetchedAnnouncements[0];
           const lastSeenId = localStorage.getItem('gtp_last_seen_announcement_id');
@@ -856,36 +899,16 @@ export default function EmployeePortal() {
     triggerToast('Anda telah keluar.');
   };
 
-  // Convert files to base64 easily
+  // Convert files to base64 easily (compressed for fast upload)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
          const dataUrl = reader.result as string;
-         const img = new Image();
-         img.onload = () => {
-             const canvas = document.createElement('canvas');
-             let width = img.width;
-             let height = img.height;
-             const MAX = 1024;
-             if (width > MAX) {
-                 height = Math.round(height * MAX / width);
-                 width = MAX;
-             }
-             canvas.width = width;
-             canvas.height = height;
-             const ctx = canvas.getContext('2d');
-             if (ctx) {
-                 ctx.drawImage(img, 0, 0, width, height);
-                 setter(canvas.toDataURL('image/jpeg', 0.6));
-                 triggerToast('Berkas foto berhasil diunggah!');
-             } else {
-                 setter(dataUrl);
-             }
-         };
-         img.onerror = () => setter(dataUrl);
-         img.src = dataUrl;
+         const compressed = await compressImageDataUrl(dataUrl, 640, 0.55);
+         setter(compressed);
+         triggerToast('Berkas foto berhasil diunggah!');
       };
       reader.readAsDataURL(file);
     }
@@ -895,14 +918,15 @@ export default function EmployeePortal() {
     try {
       const image = await CapacitorCamera.getPhoto({
         quality: 50,
-        width: 800,
+        width: 640,
         allowEditing: false,
         resultType: CameraResultType.DataUrl,
         source: CameraSource.Camera,
         direction: 'REAR' as any
       });
       if (image.dataUrl) {
-         setter(image.dataUrl);
+         const compressed = await compressImageDataUrl(image.dataUrl, 640, 0.55);
+         setter(compressed);
          triggerToast('Foto berhasil ditangkap!');
       }
     } catch (e: any) {
@@ -911,9 +935,9 @@ export default function EmployeePortal() {
     }
   };
 
-  // Absensi submission handler
+  // Absensi submission handler (Single-door atomic endpoint with auto-retry)
   const triggerClockInOrOut = async () => {
-    if (!currentEmployee) return;
+    if (!currentEmployee || loading) return;
     
     // Check WFA status
     const todayStr = getJakartaDateString(currentTime);
@@ -957,7 +981,6 @@ export default function EmployeePortal() {
       }
     }
 
-    
     const currentTimeStr = getJakartaTimeString(currentTime); // "HH:MM" (WIB)
 
     // Calculate isLate automatically
@@ -970,182 +993,66 @@ export default function EmployeePortal() {
       calculatedIsLate = currentMinutes > startMinutes;
     }
 
-    if (attendanceModalType === 'masuk') {
-      // Clock In
-      const isRetrying = !isGroupAttendance && todayAttendance?.status === 'Ditolak';
-      const payload = {
-        action: isRetrying ? 'updateDoc' : 'addDoc',
-        collection: 'attendances',
-        docId: isRetrying ? todayAttendance.id : undefined,
-        data: {
-          employeeId: targetEmployeeId,
-          attendanceDate: new Date(),
-          status: 'Hadir',
-          timeIn: currentTimeStr,
-          timeOut: null,
-          isLate: calculatedIsLate,
-          photoUrl: selfiePreview,
+    if (attendanceModalType === 'masuk' || attendanceModalType === 'pulang') {
+      setLoading(true);
+      try {
+        const existingMemberAtt = isGroupAttendance ? getMemberTodayAttendance(targetEmployeeId) : todayAttendance;
+        const res = await fetchWithRetry(
+          API_BASE_URL + '/api/employee/attendance',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              employeeId: targetEmployeeId,
+              type: attendanceModalType,
+              timeStr: currentTimeStr,
+              isLate: calculatedIsLate,
+              photoUrl: selfiePreview,
+              attendanceId: existingMemberAtt?.id
+            })
+          },
+          3
+        );
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Gagal menyimpan absensi ke server');
         }
-      };
 
-      // --- OPTIMISTIC UI UPDATE ---
-      const optimisticAtt = {
-        id: isRetrying ? todayAttendance.id : 'temp-' + Date.now(),
-        ...payload.data,
-        attendanceDate: payload.data.attendanceDate.toISOString(),
-      };
-      
-      if (!isGroupAttendance) {
-        setTodayAttendance(optimisticAtt as any);
-        if (isRetrying) {
-          setAttendancesHistory(prev => prev.map(a => a.id === todayAttendance.id ? (optimisticAtt as any) : a));
-        } else {
-          setAttendancesHistory(prev => [optimisticAtt as any, ...prev]);
-        }
-      } else {
-        setTeamAttendances(prev => [optimisticAtt as any, ...prev]);
-      }
-
-      triggerToast(`Clock-In Berhasil jam ${currentTimeStr}!`);
-      setSelfiePreview(null);
-      setSelectedGroupMemberId('');
-      setShowAttendanceModal(false);
-
-      // Background sync
-      fetch(API_BASE_URL + '/api/sql/rpc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).then(async res => {
-        if (!res.ok) throw new Error("Gagal sinkronisasi");
         const result = await res.json();
-        // Update temporary ID with real ID from server
-        if (!isGroupAttendance) {
-          setAttendancesHistory(prev => prev.map(a => a.id === optimisticAtt.id ? { ...a, id: result.id } : a));
-          setTodayAttendance(prev => prev && prev.id === optimisticAtt.id ? { ...prev, id: result.id } : prev);
-        } else {
-          setTeamAttendances(prev => prev.map(a => a.id === optimisticAtt.id ? { ...a, id: result.id } : a));
+        const savedAtt = result.attendance;
+
+        if (!isGroupAttendance && savedAtt) {
+          setTodayAttendance(savedAtt);
+          setAttendancesHistory(prev => {
+            const exists = prev.some(a => a.id === savedAtt.id);
+            if (exists) return prev.map(a => a.id === savedAtt.id ? savedAtt : a);
+            return [savedAtt, ...prev];
+          });
+        } else if (isGroupAttendance && savedAtt) {
+          setTeamAttendances(prev => {
+            const exists = prev.some(a => a.id === savedAtt.id || (a.employeeId === targetEmployeeId && !a.timeOut));
+            if (exists) return prev.map(a => (a.id === savedAtt.id || (a.employeeId === targetEmployeeId && !a.timeOut)) ? savedAtt : a);
+            return [savedAtt, ...prev];
+          });
         }
-        fetchEmployeeResources(true); // REFRESH DATA
-      }).catch(err => {
-        console.error(err);
-        triggerToast('Koneksi terputus. Harap muat ulang untuk memastikan sinkronisasi.');
-      });
-    } 
-    else if (attendanceModalType === 'pulang') {
-      // Clock Out
-      let targetAttId = todayAttendance?.id;
-      
-      // --- OPTIMISTIC UI UPDATE ---
-      if (!isGroupAttendance && todayAttendance) {
-        setTodayAttendance({
-          ...todayAttendance,
-          timeOut: currentTimeStr,
-          photoUrl: selfiePreview || todayAttendance.photoUrl
-        });
+
+        triggerToast(
+          attendanceModalType === 'masuk'
+            ? `Clock-In Berhasil Terkirim (${currentTimeStr} WIB)!`
+            : `Clock-Out Berhasil Terkirim (${currentTimeStr} WIB)!`
+        );
+        setSelfiePreview(null);
+        setSelectedGroupMemberId('');
+        setShowAttendanceModal(false);
+      } catch (err: any) {
+        console.error('Attendance submit error:', err);
+        alert(
+          `Gagal mengirim absen ke server: ${err.message || 'Koneksi jaringan tidak stabil'}.\n\nFoto swafoto Anda masih tersimpan di layar ini—silakan tekan tombol "Kirim Absen" sekali lagi.`
+        );
+      } finally {
+        setLoading(false);
       }
-      // Update history locally
-      if (!isGroupAttendance) {
-        setAttendancesHistory(prev => prev.map(a => 
-          a.employeeId === targetEmployeeId && !a.timeOut
-            ? { ...a, timeOut: currentTimeStr, photoUrl: selfiePreview || a.photoUrl }
-            : a
-        ));
-      } else {
-        setTeamAttendances(prev => prev.map(a => 
-          a.employeeId === targetEmployeeId && !a.timeOut
-            ? { ...a, timeOut: currentTimeStr, photoUrl: selfiePreview || a.photoUrl }
-            : a
-        ));
-      }
-
-      triggerToast(`Clock-Out Berhasil jam ${currentTimeStr}!`);
-      setSelfiePreview(null);
-      setSelectedGroupMemberId('');
-      setShowAttendanceModal(false);
-
-      // Background sync
-      (async () => {
-        try {
-          if (isGroupAttendance || !targetAttId) {
-            const memberAttRes = await fetch(API_BASE_URL + '/api/sql/rpc', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action: 'getDocs',
-                collection: 'attendances',
-                filters: [{ field: 'employeeId', operator: '==', value: targetEmployeeId }]
-              })
-            });
-            if (memberAttRes.ok) {
-              const history = await memberAttRes.json();
-              
-              // Find latest incomplete attendance (could be today or yesterday for cross-day shift)
-              const incomplete = history
-                .filter((a: any) => !a.timeOut && a.status !== 'Ditolak')
-                .sort((a: any, b: any) => new Date(b.attendanceDate).getTime() - new Date(a.attendanceDate).getTime())[0];
-                
-              if (incomplete) {
-                targetAttId = incomplete.id;
-              } else {
-                let memberToday = history.find((a: any) => getJakartaDateString(a.attendanceDate) === todayStr);
-                targetAttId = memberToday?.id;
-              }
-            }
-          }
-
-          if (targetAttId) {
-            const payload = {
-              action: 'updateDoc',
-              collection: 'attendances',
-              docId: targetAttId,
-              data: {
-                timeOut: currentTimeStr,
-                photoUrl: selfiePreview
-              }
-            };
-            const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error("Gagal update absen pulang");
-          } else {
-            // Fallback: create clock-out attendance record properly
-            const payload = {
-              action: 'addDoc',
-              collection: 'attendances',
-              data: {
-                employeeId: targetEmployeeId,
-                attendanceDate: new Date(),
-                status: 'Hadir',
-                timeIn: '00:00',
-                timeOut: currentTimeStr,
-                isLate: false,
-                photoUrl: selfiePreview,
-              }
-            };
-            const res = await fetch(API_BASE_URL + '/api/sql/rpc', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error("Gagal fallback absen");
-            
-            const result = await res.json();
-            // Update temporary ID with real ID
-            if (!isGroupAttendance) {
-              setAttendancesHistory(prev => prev.map(a => a.employeeId === targetEmployeeId && a.id.startsWith('temp-') ? { ...a, id: result.id } : a));
-            } else {
-              setTeamAttendances(prev => prev.map(a => a.employeeId === targetEmployeeId && a.id.startsWith('temp-') ? { ...a, id: result.id } : a));
-            }
-          }
-          fetchEmployeeResources(true); // REFRESH DATA
-        } catch (err) {
-          console.error(err);
-          triggerToast('Sinkronisasi latar belakang gagal. Akan dicoba lagi.');
-        }
-      })();
     }
     else if (attendanceModalType === 'lembur_masuk') {
       // Handle Overtime clock-in locally

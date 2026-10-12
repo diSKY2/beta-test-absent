@@ -20,23 +20,29 @@ export const createPool = () => {
   console.log("DB URL Found:", !!dbUrl);
 
   if (dbUrl) {
-    // Digunakan saat deploy ke Vercel jika menggunakan database gratis seperti Neon.tech atau Supabase 
+    // Digunakan saat deploy ke Vercel atau VPS jika menggunakan database eksternal
     const useSsl = dbUrl.includes('neon.tech') || dbUrl.includes('supabase.co') || dbUrl.includes('vercel') || dbUrl.includes('koyeb') || dbUrl.includes('sslmode=require');
     
     return new Pool({
       connectionString: dbUrl,
-      connectionTimeoutMillis: 15000,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+      keepAlive: true,
       ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
     });
   }
 
-  // Fallback ke sistem database lokal dari AI Studio
+  // Fallback ke sistem database lokal
   return new Pool({
     host: process.env.SQL_HOST,
     user: process.env.SQL_ADMIN_USER || process.env.SQL_USER,
     password: process.env.SQL_ADMIN_PASSWORD || process.env.SQL_PASSWORD,
     database: process.env.SQL_DB_NAME,
-    connectionTimeoutMillis: 15000,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    keepAlive: true,
   });
 };
 

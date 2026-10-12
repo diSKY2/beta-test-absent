@@ -3,6 +3,7 @@ import { db } from '../src/db';
 import * as schema from '../src/db/schema';
 import { eq, and, or, sql, desc, asc, inArray, gte, lte } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
+import { clearCache, getCachedData, setCachedData } from './api';
 
 export const genericDbRouter = express.Router();
 
@@ -28,9 +29,64 @@ const processGetDocs = async (collection: string, filters: any, queries: any) =>
   }
   if (!table) throw new Error('Collection not defined in schema: ' + collection);
 
-  let queryFn = db.select().from(table);
   const activeFilters = filters || queries || [];
-  if (activeFilters && Array.isArray(activeFilters) && activeFilters.length > 0) {
+  const hasFilters = Array.isArray(activeFilters) && activeFilters.length > 0;
+
+  // Serve high-frequency unfiltered reference collections from shared memory cache
+  if (!hasFilters) {
+    if (collection === 'locations') {
+      const cached = getCachedData<any[]>('ref_locations');
+      if (cached) return cached;
+      const rows = await db.select().from(schema.locations);
+      setCachedData('ref_locations', rows, 120);
+      return rows;
+    }
+    if (collection === 'departments') {
+      const cached = getCachedData<any[]>('ref_departments');
+      if (cached) return cached;
+      const rows = await db.select().from(schema.departments);
+      setCachedData('ref_departments', rows, 120);
+      return rows;
+    }
+    if (collection === 'sub_departments') {
+      const cached = getCachedData<any[]>('ref_subdepartments');
+      if (cached) return cached;
+      const rows = await db.select().from(schema.subDepartments);
+      setCachedData('ref_subdepartments', rows, 120);
+      return rows;
+    }
+    if (collection === 'employees') {
+      const cached = getCachedData<any[]>('ref_employees_rpc');
+      if (cached) return cached;
+      const [results, allowances, deductions] = await Promise.all([
+        db.select().from(schema.employees),
+        db.select().from(schema.employeeAllowances),
+        db.select().from(schema.employeeDeductions)
+      ]);
+      for (const emp of results) {
+        (emp as any).allowances = allowances.filter((a: any) => a.employeeId === emp.id);
+        (emp as any).deductions = deductions.filter((d: any) => d.employeeId === emp.id);
+      }
+      setCachedData('ref_employees_rpc', results, 45);
+      return results;
+    }
+  }
+
+  let queryFn = collection === 'attendances'
+    ? db.select({
+        id: schema.attendances.id,
+        employeeId: schema.attendances.employeeId,
+        attendanceDate: schema.attendances.attendanceDate,
+        status: schema.attendances.status,
+        timeIn: schema.attendances.timeIn,
+        timeOut: schema.attendances.timeOut,
+        isLate: schema.attendances.isLate,
+        createdAt: schema.attendances.createdAt,
+        updatedAt: schema.attendances.updatedAt,
+      }).from(schema.attendances)
+    : db.select().from(table);
+
+  if (hasFilters) {
     const conditions = activeFilters.map((f: any) => {
       let fieldName = f.field;
       if (collection === 'company_info' && fieldName === 'key') fieldName = 'configKey';
@@ -62,9 +118,11 @@ const processGetDocs = async (collection: string, filters: any, queries: any) =>
   }
   
   if (collection === 'employees') {
-    const results = await queryFn;
-    const allowances = await db.select().from(schema.employeeAllowances);
-    const deductions = await db.select().from(schema.employeeDeductions);
+    const [results, allowances, deductions] = await Promise.all([
+      queryFn,
+      db.select().from(schema.employeeAllowances),
+      db.select().from(schema.employeeDeductions)
+    ]);
     for (const emp of results) {
       (emp as any).allowances = allowances.filter((a: any) => a.employeeId === emp.id);
       (emp as any).deductions = deductions.filter((d: any) => d.employeeId === emp.id);
@@ -197,6 +255,7 @@ genericDbRouter.post('/rpc', async (req, res) => {
         const existing = await db.select().from(table).where(eq(table.subDepartmentId, safeData.subDepartmentId));
         if (existing.length > 0) {
           await db.update(table).set({ ...safeData, updatedAt: new Date() }).where(eq(table.id, existing[0].id));
+          clearCache();
           res.json({ id: existing[0].id });
           return;
         } else {
@@ -206,6 +265,7 @@ genericDbRouter.post('/rpc', async (req, res) => {
         await db.insert(table).values(insertData);
       }
       
+      clearCache();
       res.json({ id: newId });
     }
     else if (action === 'setDoc') {
@@ -289,6 +349,7 @@ genericDbRouter.post('/rpc', async (req, res) => {
           await db.insert(table).values(insertData);
         }
       }
+      clearCache();
       res.json({ id: docId });
     }
     else if (action === 'batchSetDocs') {
@@ -322,6 +383,7 @@ genericDbRouter.post('/rpc', async (req, res) => {
           }
         }
       });
+      clearCache();
       res.json({ success: true, count: docs.length });
     }
     else if (action === 'updateDoc') {
@@ -373,10 +435,12 @@ genericDbRouter.post('/rpc', async (req, res) => {
       } else {
         await db.update(table).set(safeData).where(eq(table.id, docId));
       }
+      clearCache();
       res.json({ id: docId });
     }
     else if (action === 'deleteDoc') {
       await db.delete(table).where(eq(table.id, docId));
+      clearCache();
       res.json({ id: docId });
     }
   } catch (err: any) {
