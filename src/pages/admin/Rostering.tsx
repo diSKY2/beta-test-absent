@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router';
 import { db, auth } from '../../lib/firestoreClient';
 import { collection, query, where, getDocs, setDoc, doc, addDoc, deleteDoc, batchSetDocs } from '../../lib/firestoreClient';
 import { handleFirestoreError, OperationType } from '../../lib/utils';

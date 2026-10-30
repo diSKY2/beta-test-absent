@@ -231,7 +231,10 @@ export default function AdminDashboard() {
                           className="flex flex-col space-y-1 overflow-hidden"
                         >
                           {nav.items?.map(item => {
-                            const isActive = location.pathname === item.href || (item.href !== '/admin' && location.pathname.startsWith(item.href));
+                            const fullPath = location.pathname + location.search;
+                            const isActive = item.href.includes('?') 
+                              ? fullPath === item.href 
+                              : (location.pathname === item.href && !location.search.includes('export'));
                             return (
                               <Link
                                 key={item.name}
