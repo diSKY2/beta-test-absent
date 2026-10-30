@@ -4,9 +4,10 @@ import { db, auth } from '../../lib/firestoreClient';
 import { collection, query, where, getDocs, setDoc, doc, addDoc, deleteDoc, batchSetDocs } from '../../lib/firestoreClient';
 import { handleFirestoreError, OperationType } from '../../lib/utils';
 import { format, addDays, startOfMonth, endOfMonth, differenceInDays } from 'date-fns';
-import { Calendar as CalIcon, Download, Clock, Repeat, Plus, Trash2, Edit2, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Calendar as CalIcon, Download, Clock, Repeat, Plus, Trash2, Edit2, ShieldAlert, CheckCircle2, Building2, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useToast } from '../../providers/ToastProvider';
+import ExportBranchRosterModal from './ExportBranchRosterModal';
 
 interface ShiftType {
   id: string;
@@ -40,6 +41,15 @@ export default function Rostering() {
   const [month, setMonth] = useState(format(currentMonth, 'MM'));
   const [year, setYear] = useState(format(currentMonth, 'yyyy'));
   
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showBranchExportModal, setShowBranchExportModal] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('export') === 'branch') {
+      setShowBranchExportModal(true);
+    }
+  }, [searchParams]);
+
   const [schedules, setSchedules] = useState<Record<string, string>>({}); // {"YYYY-MM-DD": "shiftTypeId"} (manually overriden schedules for a specific date)
   
   // Data State
@@ -342,9 +352,19 @@ export default function Rostering() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Dynamic Rostering ({selectedSub && subDepts.find(s=>s.id === selectedSub)?.name})</h2>
-        <p className="text-slate-600">Atur jam shift kustom per cabang/regu, lalu atur pola berulang bulanan otomatis.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Dynamic Rostering ({selectedSub && subDepts.find(s=>s.id === selectedSub)?.name})</h2>
+          <p className="text-slate-600">Atur jam shift kustom per cabang/regu, lalu atur pola berulang bulanan otomatis.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowBranchExportModal(true)}
+          className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg transition-all shrink-0 cursor-pointer"
+        >
+          <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+          <span>Export Jadwal Per Cabang (Excel)</span>
+        </button>
       </div>
 
       <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
@@ -558,12 +578,28 @@ export default function Rostering() {
                     <input type="number" value={year} onChange={e => setYear(e.target.value)} className="w-32 border-slate-300 rounded-lg shadow-lg bg-white text-slate-900" />
                   </div>
                 </div>
-                <div className="flex items-end">
-                  <button onClick={handleExport} className="flex items-center gap-2 bg-green-900/20 text-green-700 px-4 py-2 h-10 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors">
-                    <Download className="w-4 h-4" /> Export Excel
+                <div className="flex flex-wrap items-end gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => setShowBranchExportModal(true)} 
+                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 h-10 rounded-lg text-sm font-bold shadow-sm transition-colors cursor-pointer"
+                    title="Export Rekap Jadwal Seluruh Regu & Personel di Lokasi Cabang ke Excel"
+                  >
+                    <Building2 className="w-4 h-4 text-emerald-100" /> 
+                    <span>Export Per Cabang (Seluruh Regu)</span>
                   </button>
-                  <div className="flex items-center gap-2 px-4 py-2 h-10 rounded-lg text-sm font-bold text-emerald-600 bg-emerald-50 border border-emerald-200">
-                    <CheckCircle2 className="w-4 h-4" /> Sinkronisasi Otomatis Aktif
+                  <button 
+                    type="button"
+                    onClick={handleExport} 
+                    className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-4 py-2 h-10 rounded-lg text-sm font-bold transition-colors cursor-pointer"
+                    title="Export Excel untuk 1 regu yang sedang aktif saja"
+                  >
+                    <Download className="w-4 h-4 text-slate-500" /> 
+                    <span>Export Regu Ini Saja</span>
+                  </button>
+                  <div className="hidden xl:flex items-center gap-2 px-3 py-2 h-10 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> 
+                    <span>Sinkronisasi Otomatis</span>
                   </div>
                 </div>
               </div>
@@ -636,6 +672,21 @@ export default function Rostering() {
            </div>
          )}
       </div>
+
+      {/* MODAL EXPORT JADWAL PER CABANG (MULTI-SHEET EXCEL) */}
+      <ExportBranchRosterModal
+        isOpen={showBranchExportModal}
+        onClose={() => {
+          setShowBranchExportModal(false);
+          if (searchParams.get('export')) {
+            searchParams.delete('export');
+            setSearchParams(searchParams, { replace: true });
+          }
+        }}
+        locations={locations}
+        defaultMonth={month}
+        defaultYear={year}
+      />
     </div>
   );
 }

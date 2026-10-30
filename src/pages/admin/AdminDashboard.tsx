@@ -70,6 +70,7 @@ export default function AdminDashboard() {
       icon: Briefcase,
       items: [
         { name: 'Rostering Bulanan', href: '/admin/rostering', desc: 'Atur shift jadwal kerja' },
+        { name: 'Export Jadwal Cabang', href: '/admin/rostering?export=branch', desc: 'Rekap jadwal seluruh regu per lokasi' },
         { name: 'Sistem Approval', href: '/admin/approvals', desc: 'Validasi dokumen pengajuan' },
         { name: 'Laporan Kerja', href: '/admin/reports', desc: 'Arsip log harian & dinas' },
       ]

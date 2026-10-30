@@ -1405,6 +1405,264 @@ apiRouter.get('/schedules/employee/:id', async (req, res) => {
   }
 });
 
+apiRouter.post('/admin/roster-export-branch', async (req, res) => {
+  try {
+    const { locationId, month, year } = req.body;
+    const numYear = parseInt(year || new Date().getFullYear().toString(), 10);
+    const numMonth = parseInt(month || (new Date().getMonth() + 1).toString(), 10);
+
+    const monthNames = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+    // Generate dates in month
+    const daysInMonth = new Date(numYear, numMonth, 0).getDate();
+    const dates: Array<{ date: string; day: string; dayName: string }> = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayStr = String(d).padStart(2, '0');
+      const dateStr = `${numYear}-${String(numMonth).padStart(2, '0')}-${dayStr}`;
+      const dObj = new Date(numYear, numMonth - 1, d);
+      dates.push({
+        date: dateStr,
+        day: dayStr,
+        dayName: dayNames[dObj.getDay()]
+      });
+    }
+
+    const [
+      allLocations,
+      allDepts,
+      allSubDepts,
+      allEmployees,
+      allShiftTypes,
+      allShiftPatterns,
+      allOverrides,
+      allExchanges,
+      allLeaves
+    ] = await Promise.all([
+      db.select().from(locations),
+      db.select().from(departments),
+      db.select().from(subDepartments),
+      getEmployeesLightCached(),
+      getShiftTypesCached(),
+      getShiftPatternsCached(),
+      getOverridesCached(),
+      db.select().from(shiftExchanges).where(eq(shiftExchanges.status, 'Approved')),
+      db.select().from(leaveRequests).where(eq(leaveRequests.status, 'Approved'))
+    ]);
+
+    // Sub-department helper for shift pattern & overrides
+    const subDeptCache = new Map<string, { sTypes: any[]; pattern: any; overrides: any[] }>();
+    const getSubDeptData = (sId: string) => {
+      if (subDeptCache.has(sId)) return subDeptCache.get(sId)!;
+      const st = allShiftTypes.filter(s => s.subDepartmentId === sId);
+      const pt = allShiftPatterns.find(p => p.subDepartmentId === sId) || null;
+      const ov = allOverrides.filter(o => o.subDepartmentId === sId);
+      const entry = { sTypes: st, pattern: pt, overrides: ov };
+      subDeptCache.set(sId, entry);
+      return entry;
+    };
+
+    const getRawShift = (sId: string, dateStr: string) => {
+      const { sTypes, pattern, overrides } = getSubDeptData(sId);
+      let activeShift = null;
+
+      const override = overrides.find(o => getJakartaDateStr(o.overrideDate) === dateStr);
+      if (override) {
+        activeShift = sTypes.find(s => s.id === override.shiftTypeId);
+      }
+
+      if (!activeShift && pattern) {
+        const sequence = Array.isArray(pattern.sequence) ? pattern.sequence : [];
+        if (sequence.length > 0) {
+          const cycleLength = sequence.length;
+          const refDateStr = getJakartaDateStr(pattern.startDate);
+          const [rY, rM, rD] = refDateStr.split('-').map(Number);
+          const [curY, curM, curD] = dateStr.split('-').map(Number);
+          const refTime = Date.UTC(rY, rM - 1, rD);
+          const curTime = Date.UTC(curY, curM - 1, curD);
+          const diffDays = Math.floor((curTime - refTime) / (1000 * 3600 * 24));
+
+          if (diffDays >= 0) {
+            const dayInCycle = diffDays % cycleLength;
+            const shiftId = sequence[dayInCycle];
+            if (shiftId && shiftId !== 'off') {
+              activeShift = sTypes.find(s => s.id === shiftId);
+            }
+          }
+        }
+      }
+
+      return activeShift;
+    };
+
+    const targetLocations = locationId && locationId !== 'all'
+      ? allLocations.filter(l => l.id === locationId)
+      : allLocations;
+
+    const branches = targetLocations.map(loc => {
+      const locEmployees = allEmployees.filter(e => e.locationId === loc.id);
+
+      const subDeptIdsInLoc = new Set<string>();
+      locEmployees.forEach(e => {
+        if (e.subDepartmentId) subDeptIdsInLoc.add(e.subDepartmentId);
+      });
+      allSubDepts.forEach(s => {
+        if ((s as any).locationId === loc.id) subDeptIdsInLoc.add(s.id);
+      });
+
+      // Sheet 1: Regu Schedules
+      const reguSchedules: any[] = [];
+      Array.from(subDeptIdsInLoc).forEach(sId => {
+        const sub = allSubDepts.find(s => s.id === sId);
+        if (!sub) return;
+        const dept = allDepts.find(d => d.id === sub.departmentId);
+        const empsInRegu = locEmployees.filter(e => e.subDepartmentId === sId);
+
+        let workDays = 0;
+        let offDays = 0;
+        const daily = dates.map(d => {
+          const shift = getRawShift(sId, d.date);
+          const shiftName = shift ? shift.name : 'OFF';
+          const isOff = shift ? (shift.isOffDay || false) : true;
+          if (isOff) offDays++;
+          else workDays++;
+          return {
+            date: d.date,
+            shiftName,
+            isOffDay: isOff
+          };
+        });
+
+        reguSchedules.push({
+          subDepartmentId: sId,
+          subDepartmentName: sub.name,
+          departmentName: dept?.name || '-',
+          totalEmployees: empsInRegu.length,
+          workDays,
+          offDays,
+          daily
+        });
+      });
+
+      // Sheet 2: Personel Schedules
+      const empSchedules: any[] = [];
+      locEmployees.forEach(emp => {
+        const sub = allSubDepts.find(s => s.id === emp.subDepartmentId);
+        const dept = allDepts.find(d => d.id === emp.departmentId) || (sub ? allDepts.find(d => d.id === sub.departmentId) : null);
+
+        let empWorkDays = 0;
+        let empOffDays = 0;
+        let empLeaveDays = 0;
+
+        const daily = dates.map(d => {
+          // Check approved leave
+          const leave = allLeaves.find(l => {
+            const lDate = getJakartaDateStr(l.requestDate);
+            return l.employeeId === emp.id && lDate === d.date;
+          });
+
+          if (leave) {
+            empLeaveDays++;
+            return {
+              date: d.date,
+              shiftName: String(leave.type).toLowerCase() === 'sakit' ? 'Sakit' : 'Izin',
+              isOffDay: true,
+              isLeave: true,
+              exchangeNote: ''
+            };
+          }
+
+          // Check shift exchange
+          const exchange = allExchanges.find(ex => {
+            const rDate = getJakartaDateStr(ex.dateToReplace);
+            const pDate = getJakartaDateStr(ex.dateToPayback);
+            return (ex.requesterId === emp.id && (rDate === d.date || pDate === d.date)) ||
+                   (ex.replacerId === emp.id && (rDate === d.date || pDate === d.date));
+          });
+
+          let exchangeNote = '';
+          let activeShift = emp.subDepartmentId ? getRawShift(emp.subDepartmentId, d.date) : null;
+
+          if (exchange) {
+            const rDate = getJakartaDateStr(exchange.dateToReplace);
+            const pDate = getJakartaDateStr(exchange.dateToPayback);
+
+            if (exchange.requesterId === emp.id) {
+              if (rDate === d.date) {
+                activeShift = null;
+                exchangeNote = 'Tukar Libur';
+              } else if (pDate === d.date) {
+                const replacer = allEmployees.find(e => e.id === exchange.replacerId);
+                const rShift = replacer?.subDepartmentId ? getRawShift(replacer.subDepartmentId, d.date) : null;
+                activeShift = rShift || activeShift;
+                exchangeNote = 'Bayar Tukar';
+              }
+            } else if (exchange.replacerId === emp.id) {
+              if (rDate === d.date) {
+                const requester = allEmployees.find(e => e.id === exchange.requesterId);
+                const reqShift = requester?.subDepartmentId ? getRawShift(requester.subDepartmentId, d.date) : null;
+                activeShift = reqShift || activeShift;
+                exchangeNote = 'Menggantikan';
+              } else if (pDate === d.date) {
+                activeShift = null;
+                exchangeNote = 'Libur Pengganti';
+              }
+            }
+          }
+
+          const shiftName = activeShift ? activeShift.name : (exchangeNote ? exchangeNote : 'OFF');
+          const isOff = activeShift ? (activeShift.isOffDay || false) : true;
+
+          if (isOff) empOffDays++;
+          else empWorkDays++;
+
+          return {
+            date: d.date,
+            shiftName,
+            isOffDay: isOff,
+            isLeave: false,
+            exchangeNote
+          };
+        });
+
+        empSchedules.push({
+          employeeId: emp.id,
+          name: emp.name,
+          nik: emp.nik || '-',
+          role: emp.role || 'Staff',
+          locationName: loc.name,
+          departmentName: dept?.name || '-',
+          subDepartmentName: sub?.name || '-',
+          workDays: empWorkDays,
+          offDays: empOffDays,
+          leaveDays: empLeaveDays,
+          daily
+        });
+      });
+
+      return {
+        locationId: loc.id,
+        locationName: loc.name,
+        reguSchedules,
+        empSchedules
+      };
+    });
+
+    res.json({
+      dates,
+      branches,
+      monthName: `${monthNames[numMonth - 1]} ${numYear}`,
+      allShiftTypes
+    });
+  } catch (err: any) {
+    console.error('Error exporting branch roster:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 apiRouter.post('/admin/upload-apk', async (req, res) => {
   try {
     const { base64Data, version, releaseNotes } = req.body;
